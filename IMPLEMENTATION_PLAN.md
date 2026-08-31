@@ -145,6 +145,15 @@ crossec_forecast/
 │   ├── metrics.py             # 截面 Rank IC, ICIR, AUC, Accuracy, Top-Bottom Spread
 │   ├── backtest.py            # 预留真实交易回测与摩擦成本评估接口 (BacktestEvaluator)
 │   └── benchmark.py           # BenchmarkEngine 横向横评对比器
+├── configs/
+│   ├── default_config.py      # DataConfig / TrainConfig / BenchmarkConfig
+│   └── experiment_schema.py   # ExperimentConfig 结构化 schema (实验层, 见 EXPERIMENTS.md)
+├── pipelines/                 # 由 experiment.yaml 驱动的可 import 流程 (见 EXPERIMENTS.md)
+│   ├── context.py             # 配置加载 / 合并 / schema→dataclass 适配
+│   ├── train_pipeline.py      # run_train
+│   ├── infer_pipeline.py      # run_infer
+│   ├── benchmark_pipeline.py  # run_benchmark
+│   └── tracking.py            # WandbTracker
 ├── examples/
 │   ├── mock_panel_data.py     # 模拟生成与 standar_panel.csv 同结构的面板测试数据
 │   └── run_benchmark.py       # 一键运行多模型横评示例
@@ -152,8 +161,16 @@ crossec_forecast/
     ├── test_data.py           # 测试数据加载、窗口构造、NaN 过滤与无泄露切分
     ├── test_models.py         # 测试模型注册机制与输入输出维度
     ├── test_trainer.py        # 测试基于 Rank IC 的早停与单模型训练
-    └── test_benchmark.py      # 测试多模型横评与报告生成
+    ├── test_benchmark.py      # 测试多模型横评与报告生成
+    └── test_pipelines.py      # 测试实验层配置合并与 train/infer 流程
+
+# 实验层（应用代码，非库）——详见 EXPERIMENTS.md
+experiments/                   # experiment.yaml / models 片段 / sweep 规格
+scripts/                       # 薄 CLI 入口 (train / infer / benchmark) + sweep 调度器
 ```
+
+> 库内 `crossec_forecast/` 之外的 `experiments/`、`scripts/` 属于**使用该库的实验流程层**，
+> 其配置体系、命令行用法与集群批量调度统一见 [`EXPERIMENTS.md`](./EXPERIMENTS.md)。
 
 ---
 

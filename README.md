@@ -96,6 +96,15 @@ summary_df = engine.run()
 
 ---
 
+## 📚 深入文档
+
+README 只覆盖快速上手，更完整的内容拆分在两份文档：
+
+- **[架构设计 · IMPLEMENTATION_PLAN.md](./IMPLEMENTATION_PLAN.md)** —— 端到端系统架构、三阶段训评范式、数据集规范、库内目录与模块划分。
+- **[实验工作流 · EXPERIMENTS.md](./EXPERIMENTS.md)** —— `experiment.yaml` 配置体系、`pipelines/` 与 `scripts/` 用法、单模型训练 / 推理 / 多模型横评 / 集群批量调度、wandb 接入。
+
+---
+
 ## 🔌 扩展自定义模型 (Plugin a Custom Model)
 
 扩展一个新模型极为简单：

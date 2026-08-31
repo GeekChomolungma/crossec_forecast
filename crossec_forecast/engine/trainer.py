@@ -30,9 +30,12 @@ class Trainer:
         optimizer: Optional[torch.optim.Optimizer] = None,
         scheduler: Optional[Any] = None,
         logger=None,
+        callbacks: Optional[list] = None,
     ):
         self.config = config or TrainConfig()
         self.logger = logger or setup_logger("Trainer")
+        # Optional list of callables invoked as cb(epoch_log: dict) after every epoch.
+        self.callbacks = list(callbacks) if callbacks else []
         self.device = self._select_device(self.config.device)
         self.model = model.to(self.device)
 
@@ -188,6 +191,14 @@ class Trainer:
             else:
                 patience_counter += 1
                 is_best = ""
+
+            # Fire epoch callbacks (e.g. experiment trackers). Never let them break training.
+            epoch_log["is_best"] = bool(is_best)
+            for cb in self.callbacks:
+                try:
+                    cb(epoch_log)
+                except Exception as exc:  # noqa: BLE001
+                    self.logger.warning(f"Epoch callback {cb!r} failed: {exc}")
 
             self.logger.info(
                 f"Epoch [{epoch:02d}/{self.config.epochs:02d}] "

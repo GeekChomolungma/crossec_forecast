@@ -1,0 +1,10 @@
+# Fragment: compose after the base config, e.g.
+#   python scripts/train.py -c experiments/experiment.yaml -c experiments/models/lstm.yaml
+model:
+  name: lstm
+  config:
+    hidden_dim: 64
+    num_layers: 2
+    dropout: 0.2
+    bidirectional: false
+    pooling: last          # last | mean | attention

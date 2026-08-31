@@ -1,0 +1,54 @@
+#!/usr/bin/env bash
+#SBATCH -p gpu_h100
+#SBATCH --gpus=1
+#SBATCH --cpus-per-gpu=16
+#SBATCH --mem-per-gpu=64G
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH -t 48:00:00
+#SBATCH -J @@JOB_NAME@@
+#SBATCH -D @@PROJECT_DIR@@
+#SBATCH -o /projects/prjs1859/users/%u/slurm/logs/%x_%j.out
+#SBATCH -e /projects/prjs1859/users/%u/slurm/logs/%x_%j.err
+@@EXTRA_SBATCH@@
+# =====================================================================================
+# TEMPLATE for scripts/sweep.py --launcher slurm. For each sweep job it is copied to
+# runs/_sweeps/<...>/sbatch/<job>.sbatch with five markers substituted (double-at tokens):
+# JOB_NAME, PROJECT_DIR (cluster clone path), ENTRY_SCRIPT (scripts/train.py or
+# scripts/benchmark.py), CONFIG_PATH (this job's resolved config), EXTRA_SBATCH.
+# Everything else — including the bash ${...} below — is kept verbatim.
+#
+# Edit THIS file, not the rendered copies. Adjust the -p / -t / --mem-per-gpu / -o / -e
+# header for your account; if you launch from the /gpfs mount fix the /projects prefix.
+# =====================================================================================
+
+set -euo pipefail
+
+if [[ -z "${ROOT_BASE:-}" ]]; then
+  if [[ -d "/projects/prjs1859" ]]; then
+    ROOT_BASE="/projects/prjs1859"
+  elif [[ -d "/gpfs/work5/0/prjs1859" ]]; then
+    ROOT_BASE="/gpfs/work5/0/prjs1859"
+  else
+    echo "[cf-sweep] cannot resolve ROOT_BASE; set ROOT_BASE explicitly" >&2
+    exit 1
+  fi
+fi
+PROJECT_DIR="${PROJECT_DIR:-@@PROJECT_DIR@@}"
+LOG_DIR="${LOG_DIR:-${ROOT_BASE}/users/${USER}/slurm/logs}"
+mkdir -p "${LOG_DIR}"
+
+source "${ROOT_BASE}/load_exp_env.sh"
+
+which python
+python -c "import torch; print('torch ok', torch.__version__, '| cuda', torch.cuda.is_available())"
+
+# --- business ----------------------------------------------------------------------
+cd "${PROJECT_DIR}"
+export PYTHONUNBUFFERED=1
+# Compute nodes are usually offline; keep wandb non-blocking. After the job:
+#   wandb sync runs/**/wandb/offline-run-*
+export WANDB_MODE="${WANDB_MODE:-offline}"
+
+echo "[cf-sweep] python @@ENTRY_SCRIPT@@ -c @@CONFIG_PATH@@"
+python @@ENTRY_SCRIPT@@ -c @@CONFIG_PATH@@

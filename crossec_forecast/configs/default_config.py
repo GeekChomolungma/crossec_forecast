@@ -10,6 +10,7 @@ class DataConfig:
     timestamp_col: str = "timestamp"
     symbol_col: str = "symbol"
     feature_pattern: str = r"^crossec_.*_mad_Zscore$"
+    feature_cols: Optional[List[str]] = None  # Explicit whitelist; overrides feature_pattern when set
     seq_len: int = 6                     # Lookback window L (e.g. current + 5 past bars)
     train_ratio: float = 0.70
     val_ratio: float = 0.15

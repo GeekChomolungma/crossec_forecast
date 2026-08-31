@@ -1,0 +1,6 @@
+# Fragment: python scripts/train.py -c experiments/experiment.yaml -c experiments/models/dlinear.yaml
+model:
+  name: dlinear
+  config:
+    kernel_size: 3
+    individual: false

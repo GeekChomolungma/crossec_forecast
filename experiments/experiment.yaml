@@ -1,0 +1,86 @@
+# ======================================================================================
+# crossec_forecast — canonical experiment config
+#
+# Single source of truth for a train / validate / test / benchmark / infer run.
+# Schema + defaults live in crossec_forecast/configs/experiment_schema.py; unknown keys
+# here raise on load (typo protection). Override any key from the CLI as a dot-list:
+#
+#   python scripts/train.py -c experiments/experiment.yaml model.name=lstm train.lr=0.0005
+#
+# Note: write floats with a decimal point in overrides (train.lr=0.0005, not 5e-4).
+# ======================================================================================
+
+experiment:
+  name: baseline_v1          # groups run folders and wandb runs
+  seed: 42
+
+run:
+  name: null                 # auto: <timestamp>_<model>_<hash>; set to pin a folder
+  output_root: ./runs        # artifacts -> ./runs/<experiment.name>/<run.name>/
+  tags: [crossec, panel, L6]
+
+# ---- data / split ---------------------------------------------------------------------
+data:
+  path: ./data/mock_standar_panel.csv
+  target_col: logret1_win
+  fwd_ret_col: fwd_logret_1
+  timestamp_col: timestamp
+  symbol_col: symbol
+  feature_pattern: '^crossec_.*_mad_Zscore$'
+  feature_cols: null         # explicit whitelist (list of names) — overrides feature_pattern
+  seq_len: 6                 # lookback window L (current + 5 past bars)
+  split:
+    train_ratio: 0.70
+    val_ratio: 0.15
+    test_ratio: 0.15
+    embargo_steps: 1         # purged timestamps between splits
+  batch_size: 64
+  shuffle_train: true
+  num_workers: 0
+  drop_last: false
+
+# ---- training / optimisation --------------------------------------------------------
+train:
+  epochs: 20
+  lr: 0.001
+  weight_decay: 0.0001
+  grad_clip_norm: 1.0
+  early_stopping_patience: 5     # on val mean rank IC
+  loss_type: bce                 # bce | focal
+  focal_gamma: 2.0
+  focal_alpha: null
+  device: auto                   # auto | cuda | mps | cpu
+  scheduler_type: reduce_on_plateau   # reduce_on_plateau | cosine | none
+  scheduler_patience: 3
+  scheduler_factor: 0.5
+
+# ---- single model (scripts/train.py, scripts/infer.py) ------------------------------
+model:
+  name: lstm
+  config:
+    hidden_dim: 48
+    num_layers: 2
+    dropout: 0.2
+    pooling: last               # last | mean | attention
+
+# ---- model roster (scripts/benchmark.py) --------------------------------------------
+benchmark:
+  top_quantile: 0.20
+  models:
+    - {name: mlp,          config: {hidden_dims: [64, 32], dropout: 0.2, use_norm: true}}
+    - {name: lstm,         config: {hidden_dim: 48, num_layers: 2, dropout: 0.2, pooling: last}}
+    - {name: dlinear,      config: {kernel_size: 3, individual: false}}
+    - {name: tsfm_wrapper, config: {d_model: 48, nhead: 4, num_layers: 2, dropout: 0.1}}
+
+# ---- experiment tracking ------------------------------------------------------------
+wandb:
+  enabled: true
+  project: crossec_forecast
+  entity: null                  # your team / username; null = default
+  mode: online                  # online | offline | disabled
+  group: ${experiment.name}
+  job_type: train
+  name: null                    # null = run folder name
+  notes: null
+  tags: []
+  log_freq: 1                   # log every N epochs

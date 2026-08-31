@@ -1,0 +1,45 @@
+# ======================================================================================
+# Sweep spec for scripts/sweep.py
+#
+#   python scripts/sweep.py -s experiments/sweep.example.yaml --launcher print
+#   python scripts/sweep.py -s experiments/sweep.example.yaml --launcher local --max-parallel 2
+#   python scripts/sweep.py -s experiments/sweep.example.yaml --launcher slurm
+#
+# One job = one `variant`  x  one point of the `grid` cartesian product.
+# Effective overrides per job:  common_overrides + variant.overrides + grid point.
+# ======================================================================================
+
+base_config: experiments/experiment.yaml
+entry: train                     # train | benchmark  (which scripts/<entry>.py to run)
+
+common_overrides:
+  - experiment.name=sweep_arch_v1
+  - wandb.group=sweep_arch_v1
+
+variants:
+  - name: mlp
+    overrides:
+      - model.name=mlp
+      - "model.config={hidden_dims: [128, 64], dropout: 0.2, use_norm: true}"
+  - name: lstm
+    overrides:
+      - model.name=lstm
+      - "model.config={hidden_dim: 64, num_layers: 2, dropout: 0.2, pooling: last}"
+  - name: dlinear
+    overrides:
+      - model.name=dlinear
+      - "model.config={kernel_size: 3, individual: false}"
+  - name: tsfm
+    overrides:
+      - model.name=tsfm_wrapper
+      - "model.config={d_model: 64, nhead: 4, num_layers: 2, dropout: 0.1}"
+
+grid:
+  train.lr: [0.001, 0.0005]
+  experiment.seed: [42, 123]
+
+# Used only when --launcher slurm. Resource request + env activation now live in
+# scripts/slurm/train.sbatch.tmpl (edit that header for -p / -t / --mem-per-gpu / -o / -e).
+# Here you only add extra #SBATCH lines per job.
+slurm:
+  extra_sbatch: []               # e.g. ["--account=prjs1859", "--qos=normal"]

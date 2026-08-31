@@ -1,0 +1,7 @@
+# Fragment: python scripts/train.py -c experiments/experiment.yaml -c experiments/models/mlp.yaml
+model:
+  name: mlp
+  config:
+    hidden_dims: [64, 32]
+    dropout: 0.2
+    use_norm: true

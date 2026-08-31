@@ -69,6 +69,7 @@ def build_dataloaders(
         timestamp_col=config.timestamp_col,
         symbol_col=config.symbol_col,
         feature_pattern=config.feature_pattern,
+        feature_cols=config.feature_cols,
         allowed_timestamps=train_ts,
     )
 
