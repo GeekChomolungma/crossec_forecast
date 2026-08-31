@@ -35,9 +35,10 @@ env.bak/
 venv.bak/
 
 # =========================
-# Large Data Files & Panel Data
+# Large Data Files & Panel Data (Root Only)
 # =========================
-data/
+/dataset/
+/data/
 *.csv
 *.parquet
 *.feather

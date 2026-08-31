@@ -21,7 +21,7 @@ def main():
     seed_everything(42)
 
     # 1. Prepare Mock Data (mimicking standar_panel.csv)
-    mock_csv_path = Path("./data/mock_standar_panel.csv")
+    mock_csv_path = Path("./dataset/mock_standar_panel.csv")
     mock_csv_path.parent.mkdir(parents=True, exist_ok=True)
     
     print("\n[Step 1/3] Generating realistic financial panel data...")
