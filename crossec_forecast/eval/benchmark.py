@@ -1,0 +1,134 @@
+from pathlib import Path
+from typing import List, Dict, Any, Optional
+import json
+import pandas as pd
+import torch
+
+from ..models.registry import build_model
+from ..configs.default_config import TrainConfig, BenchmarkConfig
+from .backtest import SimpleLongShortBacktester
+from ..utils.logger import setup_logger
+from ..utils.seed import seed_everything
+
+
+class BenchmarkEngine:
+    """
+    Automated Multi-Model Benchmark and Horizontal Performance Comparator.
+    Executes training, validation, and testing across an arbitrary list of models
+    under identical data partitions and outputs comparative reports.
+    """
+
+    def __init__(
+        self,
+        train_loader,
+        val_loader,
+        test_loader,
+        meta_info: Dict[str, Any],
+        models_config: Optional[List[Dict[str, Any]]] = None,
+        train_config: Optional[TrainConfig] = None,
+        benchmark_config: Optional[BenchmarkConfig] = None,
+        seed: int = 42,
+        logger=None,
+    ):
+        self.train_loader = train_loader
+        self.val_loader = val_loader
+        self.test_loader = test_loader
+        self.meta_info = meta_info
+        self.train_config = train_config or TrainConfig()
+        self.benchmark_config = benchmark_config or BenchmarkConfig()
+        self.models_config = models_config or self.benchmark_config.models
+        self.seed = seed
+        self.logger = logger or setup_logger("BenchmarkEngine")
+        self.backtester = SimpleLongShortBacktester(top_quantile=self.benchmark_config.top_quantile)
+
+    def run(self) -> pd.DataFrame:
+        """Run benchmark across all configured models."""
+        from ..engine.trainer import Trainer
+
+        self.logger.info("=" * 65)
+        self.logger.info("Starting Multi-Model Benchmark Evaluation")
+        self.logger.info(f"Feature Dim: {self.meta_info['num_features']}, Sequence Length: {self.meta_info['seq_len']}")
+        self.logger.info(f"Samples: Train={self.meta_info['n_train_samples']}, Val={self.meta_info['n_val_samples']}, Test={self.meta_info['n_test_samples']}")
+        self.logger.info("=" * 65)
+
+        results = []
+
+        for m_item in self.models_config:
+            model_name = m_item["name"]
+            user_m_cfg = m_item.get("config", {})
+
+            # Automatically inject feature_dim and seq_len
+            full_model_cfg = {
+                "seq_len": self.meta_info["seq_len"],
+                "feature_dim": self.meta_info["num_features"],
+                "num_classes": 1,
+                **user_m_cfg,
+            }
+
+            self.logger.info(f"\n>>> Benchmarking Model Plugin: [{model_name.upper()}] <<<")
+            seed_everything(self.seed)
+
+            # Build model
+            model = build_model(model_name, full_model_cfg)
+
+            # Train
+            trainer = Trainer(
+                model=model,
+                config=self.train_config,
+                logger=self.logger,
+            )
+            fit_res = trainer.fit(self.train_loader, self.val_loader)
+
+            # Evaluate on Test (OOS)
+            test_preds_df = trainer.predict(self.test_loader)
+            test_metrics = trainer.evaluate(self.test_loader, top_quantile=self.benchmark_config.top_quantile)
+            bt_metrics = self.backtester.evaluate(test_preds_df)
+
+            row = {
+                "model": model_name,
+                "best_epoch": fit_res["best_epoch"],
+                "val_rank_ic": fit_res["best_val_rank_ic"],
+                "test_rank_ic": test_metrics["mean_rank_ic"],
+                "test_ic_ir": test_metrics["ic_ir"],
+                "test_auc": test_metrics["auc"],
+                "test_accuracy": test_metrics["accuracy"],
+                "test_f1": test_metrics["f1"],
+                "top_bottom_spread": test_metrics["top_bottom_spread"],
+                "ann_return": bt_metrics["annual_return"],
+                "sharpe_ratio": bt_metrics["sharpe_ratio"],
+                "max_drawdown": bt_metrics["max_drawdown"],
+                "train_time_sec": fit_res["train_time_sec"],
+            }
+            results.append(row)
+
+        res_df = pd.DataFrame(results)
+        # Sort by Test Rank IC descending
+        res_df = res_df.sort_values(by="test_rank_ic", ascending=False).reset_index(drop=True)
+
+        # Export reports
+        export_path = Path(self.benchmark_config.export_dir)
+        export_path.mkdir(parents=True, exist_ok=True)
+
+        csv_file = export_path / "benchmark_summary.csv"
+        md_file = export_path / "benchmark_summary.md"
+        json_file = export_path / "benchmark_summary.json"
+
+        res_df.to_csv(csv_file, index=False)
+        with open(md_file, "w", encoding="utf-8") as f:
+            f.write("# Model Benchmark Performance Summary\n\n")
+            try:
+                f.write(res_df.to_markdown(index=False))
+            except Exception:
+                f.write(res_df.to_string(index=False))
+            f.write("\n")
+
+        with open(json_file, "w", encoding="utf-8") as f:
+            json.dump(res_df.to_dict(orient="records"), f, indent=2)
+
+        self.logger.info("\n" + "=" * 65)
+        self.logger.info("Benchmark Complete! Summary Table:")
+        self.logger.info("\n" + res_df.to_string(index=False))
+        self.logger.info(f"Reports saved to: {export_path}")
+        self.logger.info("=" * 65)
+
+        return res_df

@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "crossec_forecast"
+version = "0.1.0"
+description = "High-Performance Cross-Sectional & Time-Series Financial Forecasting and Model Benchmarking Framework"
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+    "torch>=2.0.0",
+    "numpy>=1.22.0",
+    "pandas>=1.4.0",
+    "scipy>=1.8.0",
+    "scikit-learn>=1.0.0",
+    "tabulate>=0.9.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["crossec_forecast*"]
+
