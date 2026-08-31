@@ -35,7 +35,7 @@ variants:
       - "model.config={d_model: 64, nhead: 4, num_layers: 2, dropout: 0.1}"
 
 grid:
-  train.lr: [0.001, 0.0005]
+  train.lr: [0.001]
   experiment.seed: [42, 123]
 
 # Used only when --launcher slurm. Resource request + env activation now live in

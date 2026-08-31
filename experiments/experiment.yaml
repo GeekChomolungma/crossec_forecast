@@ -41,11 +41,12 @@ data:
 
 # ---- training / optimisation --------------------------------------------------------
 train:
-  epochs: 20
+  epochs: 30
   lr: 0.001
   weight_decay: 0.0001
   grad_clip_norm: 1.0
-  early_stopping_patience: 5     # on val mean rank IC
+  early_stopping_patience: 10    # on val mean rank IC
+  min_delta: 0.001               # IC gain below this over best doesn't reset patience (noise filter)
   loss_type: bce                 # bce | focal
   focal_gamma: 2.0
   focal_alpha: null

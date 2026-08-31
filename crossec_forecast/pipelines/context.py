@@ -117,6 +117,7 @@ def to_train_config(cfg: DictConfig, checkpoint_dir: str | Path) -> TrainConfig:
         weight_decay=float(t.weight_decay),
         grad_clip_norm=float(t.grad_clip_norm),
         early_stopping_patience=int(t.early_stopping_patience),
+        min_delta=float(t.min_delta),
         loss_type=str(t.loss_type),
         focal_gamma=float(t.focal_gamma),
         focal_alpha=(None if t.focal_alpha is None else float(t.focal_alpha)),

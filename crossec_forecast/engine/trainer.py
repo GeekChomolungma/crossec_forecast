@@ -60,7 +60,7 @@ class Trainer:
             self.scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
                 self.optimizer,
                 mode="max",
-                patience=self.config.scheduler_patience,
+                patience=self.config.scheduler_patience, # 连续几轮不创新高就降LR
                 factor=self.config.scheduler_factor,
             )
         elif self.config.scheduler_type == "cosine":
@@ -181,8 +181,10 @@ class Trainer:
             }
             history.append(epoch_log)
 
-            # Checkpoint selection strictly driven by Validation Rank IC
-            if val_ic > best_val_ic:
+            # Checkpoint selection strictly driven by Validation Rank IC. `min_delta` requires
+            # a gain of at least that much to count as improvement, so noise-level IC wobble
+            # doesn't reset the early-stopping patience counter.
+            if val_ic > best_val_ic + self.config.min_delta:
                 best_val_ic = val_ic
                 best_epoch = epoch
                 torch.save(self.model.state_dict(), self.best_checkpoint_path)
