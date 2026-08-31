@@ -10,7 +10,7 @@ CONFIG="${1:-experiments/experiment.yaml}"
 shift || true
 EXTRA=("$@")
 
-MODELS=(mlp lstm dlinear tsfm_wrapper)
+MODELS=(mlp lstm dlinear)
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 

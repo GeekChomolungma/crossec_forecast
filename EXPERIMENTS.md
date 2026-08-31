@@ -43,7 +43,7 @@ experiments/
 │   ├── lstm.yaml
 │   ├── mlp.yaml
 │   ├── dlinear.yaml
-│   └── tsfm_wrapper.yaml
+│   └── pretrained.yaml.example   # 模板：未来接入预训练骨干（如 Chronos2）时参考，目前不可直接跑
 └── sweep.example.yaml         # 批量调度规格（变体 × 网格）
 
 crossec_forecast/
@@ -255,11 +255,11 @@ for f in sbatch/lstm__*.sbatch; do sbatch "$f"; done   # 一批
 metrics.json …），和手动跑一次 `scripts/train.py` 完全一致。
 
 投之前按自己账号改 `train.sbatch.tmpl` 头部的 `-p` / `-t` / `--mem-per-gpu` / `-o` / `-e`。
-默认 `export WANDB_MODE=offline`（算力节点通常无外网），跑完在登录节点
-`wandb sync runs/**/wandb/offline-run-*` 回传。
+默认 `export WANDB_MODE=online`；算力节点若无外网，用 `WANDB_MODE=offline sbatch ...`
+覆盖，跑完在登录节点 `wandb sync runs/**/wandb/offline-run-*` 回传。
 
 `scripts/run_all_models.sh [config.yaml] [extra.override=value ...]` 是不需要 sweep 规格、
-本地顺序跑完 `mlp / lstm / dlinear / tsfm_wrapper` 的便捷脚本。
+本地顺序跑完 `mlp / lstm / dlinear` 的便捷脚本。
 
 ---
 

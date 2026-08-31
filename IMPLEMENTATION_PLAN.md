@@ -28,13 +28,13 @@ flowchart TD
         LSTMMod["@register_model('lstm')<br/>LSTMClassifier"]
         MLPMod["@register_model('mlp')<br/>Flattened MLPClassifier"]
         DLinearMod["@register_model('dlinear')<br/>DLinearClassifier"]
-        TSFMMod["@register_model('tsfm_wrapper')<br/>TSFMWrapper"]
+        PretrainedMod["PretrainedBackboneModel (接口，未注册)<br/>预留给未来 Chronos2 等预训练骨干"]
         CustomMod["@register_model('custom')<br/>用户自定义模型 (即插即用)"]
 
         BaseModel --> LSTMMod
         BaseModel --> MLPMod
         BaseModel --> DLinearMod
-        BaseModel --> TSFMMod
+        BaseModel --> PretrainedMod
         BaseModel --> CustomMod
     end
 
@@ -135,7 +135,7 @@ crossec_forecast/
 │   ├── lstm.py                # LSTM 模型插件
 │   ├── mlp.py                 # Flattened MLP / Linear 模型插件
 │   ├── dlinear.py             # DLinear 时序模型插件
-│   └── tsfm_wrapper.py        # TSFM 扩展通用适配器
+│   └── pretrained.py          # PretrainedBackboneModel 接口 (未注册，留给未来预训练骨干)
 ├── engine/
 │   ├── __init__.py
 │   ├── trainer.py             # 统一 Trainer (基于 Val Mean Rank IC 进行早停与权重保存)

@@ -86,10 +86,9 @@ def main():
                 "name": "dlinear",
                 "config": {"kernel_size": 3, "individual": False},
             },
-            {
-                "name": "tsfm_wrapper",
-                "config": {"d_model": 48, "nhead": 4, "num_layers": 2, "dropout": 0.1},
-            },
+            # A future pretrained backbone (e.g. Chronos2) plugs in here once it's
+            # wired up as a crossec_forecast.models.PretrainedBackboneModel subclass —
+            # just add {"name": "<registered_name>", "config": {...}}.
         ],
         top_quantile=0.20,
         export_dir="./benchmark_reports",

@@ -20,7 +20,8 @@
      - `MLPClassifier`: 展平聚合超大向量前馈网络。
      - `LSTMClassifier`: 时序循环网络（支持 Last/Mean/Attention Pooling）。
      - `DLinearClassifier`: 经典轻量趋势/季节分解时序模型。
-     - `TSFMWrapper`: Patch/Transformer 架构时序大模型扩展适配器。
+   - v1 只做 from-scratch 训练（随机初始化，仅在自有样本上训练），暂不接入外部预训练权重。
+   - 预留 `PretrainedBackboneModel` 接口（`crossec_forecast/models/pretrained.py`）：未来接入 Chronos2 等预训练时序基础模型时，继承它、加载真实权重、用 `@register_model(...)` 注册即可复用同一套训练/评测/sweep 流程，无需改动其他代码。
    - 新增模型只需单独新建一个 `.py` 文件并注册，无需改动训练器与评测逻辑。
 
 3. **量化三阶段严谨训评范式 (Three-Stage Quant Lifecycle)**
@@ -76,7 +77,7 @@ benchmark_config = BenchmarkConfig(
         {"name": "mlp", "config": {"hidden_dims": [64, 32], "dropout": 0.2}},
         {"name": "lstm", "config": {"hidden_dim": 48, "num_layers": 2}},
         {"name": "dlinear", "config": {"kernel_size": 3}},
-        {"name": "tsfm_wrapper", "config": {"d_model": 48, "nhead": 4}},
+        # 未来接入预训练骨干（如 Chronos2）时，在这里加一行 {"name": "<registered_name>", "config": {...}}
     ],
     export_dir="./benchmark_reports",
 )

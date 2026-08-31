@@ -1,9 +1,0 @@
-# Fragment: python scripts/train.py -c experiments/experiment.yaml -c experiments/models/tsfm_wrapper.yaml
-model:
-  name: tsfm_wrapper
-  config:
-    d_model: 48
-    nhead: 4
-    num_layers: 2
-    dim_feedforward: 128
-    dropout: 0.1

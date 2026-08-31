@@ -3,7 +3,7 @@ from .registry import register_model, build_model, list_registered_models, is_mo
 from .mlp import MLPClassifier
 from .lstm import LSTMClassifier
 from .dlinear import DLinearClassifier
-from .tsfm_wrapper import TSFMWrapper
+from .pretrained import PretrainedBackboneModel
 
 __all__ = [
     "BaseClassifierModel",
@@ -14,6 +14,5 @@ __all__ = [
     "MLPClassifier",
     "LSTMClassifier",
     "DLinearClassifier",
-    "TSFMWrapper",
+    "PretrainedBackboneModel",
 ]
-

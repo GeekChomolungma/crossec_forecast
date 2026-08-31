@@ -13,7 +13,7 @@ from .models import (
     MLPClassifier,
     LSTMClassifier,
     DLinearClassifier,
-    TSFMWrapper,
+    PretrainedBackboneModel,
 )
 from .engine import Trainer, FocalLoss, get_loss_fn
 from .eval import (
@@ -42,7 +42,7 @@ __all__ = [
     "MLPClassifier",
     "LSTMClassifier",
     "DLinearClassifier",
-    "TSFMWrapper",
+    "PretrainedBackboneModel",
     "Trainer",
     "FocalLoss",
     "get_loss_fn",

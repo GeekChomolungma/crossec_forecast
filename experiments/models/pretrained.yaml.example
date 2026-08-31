@@ -1,0 +1,12 @@
+# Template fragment for a future pretrained/foundation-model backbone (e.g. Chronos2).
+# Not runnable yet: `model.name` below isn't registered until someone adds a
+# `crossec_forecast.models.PretrainedBackboneModel` subclass and decorates it with
+# @register_model("chronos2") (see crossec_forecast/models/pretrained.py).
+#
+# Once that exists, use it exactly like the other model fragments:
+#   python scripts/train.py -c experiments/experiment.yaml -c experiments/models/pretrained.yaml.example
+model:
+  name: chronos2
+  config:
+    pretrained_path: /path/to/checkpoint_or_hub_id
+    freeze_backbone: true

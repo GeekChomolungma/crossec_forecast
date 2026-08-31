@@ -68,10 +68,12 @@ model:
 benchmark:
   top_quantile: 0.20
   models:
-    - {name: mlp,          config: {hidden_dims: [64, 32], dropout: 0.2, use_norm: true}}
-    - {name: lstm,         config: {hidden_dim: 48, num_layers: 2, dropout: 0.2, pooling: last}}
-    - {name: dlinear,      config: {kernel_size: 3, individual: false}}
-    - {name: tsfm_wrapper, config: {d_model: 48, nhead: 4, num_layers: 2, dropout: 0.1}}
+    - {name: mlp,     config: {hidden_dims: [64, 32], dropout: 0.2, use_norm: true}}
+    - {name: lstm,    config: {hidden_dim: 48, num_layers: 2, dropout: 0.2, pooling: last}}
+    - {name: dlinear, config: {kernel_size: 3, individual: false}}
+    # Pretrained/foundation-model backbones (e.g. Chronos2) plug in here once wired up
+    # as a crossec_forecast.models.PretrainedBackboneModel subclass — add a row with
+    # its registered `model.name` and config, same as the from-scratch models above.
 
 # ---- experiment tracking ------------------------------------------------------------
 wandb:

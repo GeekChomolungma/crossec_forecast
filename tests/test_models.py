@@ -2,6 +2,7 @@ import unittest
 import torch
 from crossec_forecast.models import (
     BaseClassifierModel,
+    PretrainedBackboneModel,
     register_model,
     build_model,
     list_registered_models,
@@ -27,10 +28,9 @@ class TestModelPluginSystem(unittest.TestCase):
         self.assertIn("mlp", registered)
         self.assertIn("lstm", registered)
         self.assertIn("dlinear", registered)
-        self.assertIn("tsfm_wrapper", registered)
 
     def test_all_registered_models_forward_and_predict_proba(self):
-        for name in ["mlp", "lstm", "dlinear", "tsfm_wrapper"]:
+        for name in ["mlp", "lstm", "dlinear"]:
             model = build_model(name, self.base_cfg)
             logits = model(self.dummy_input)
             self.assertEqual(logits.shape, (self.b, 1), f"Model {name} output shape mismatch")
@@ -53,6 +53,14 @@ class TestModelPluginSystem(unittest.TestCase):
         custom_model = build_model("custom_dummy_net", self.base_cfg)
         out = custom_model(self.dummy_input)
         self.assertEqual(out.shape, (self.b, 1))
+
+    def test_pretrained_backbone_is_an_unregistered_interface(self):
+        # Extension point for future foundation-model wrappers (e.g. Chronos2): not a
+        # runnable model until a subclass loads real weights and registers itself.
+        self.assertFalse(is_model_registered("pretrainedbackbonemodel"))
+        stub = PretrainedBackboneModel(self.base_cfg)
+        with self.assertRaises(NotImplementedError):
+            stub(self.dummy_input)
 
 
 if __name__ == "__main__":
