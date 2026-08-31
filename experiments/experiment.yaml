@@ -21,7 +21,7 @@ run:
 
 # ---- data / split ---------------------------------------------------------------------
 data:
-  path: ./data/mock_standar_panel.csv
+  path: ./data/standard_panel.csv
   target_col: logret1_win
   fwd_ret_col: fwd_logret_1
   timestamp_col: timestamp

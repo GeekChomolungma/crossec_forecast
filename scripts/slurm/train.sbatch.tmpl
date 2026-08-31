@@ -46,9 +46,9 @@ python -c "import torch; print('torch ok', torch.__version__, '| cuda', torch.cu
 # --- business ----------------------------------------------------------------------
 cd "${PROJECT_DIR}"
 export PYTHONUNBUFFERED=1
-# Compute nodes are usually offline; keep wandb non-blocking. After the job:
-#   wandb sync runs/**/wandb/offline-run-*
-export WANDB_MODE="${WANDB_MODE:-offline}"
+# Default to online logging; compute nodes without internet can override with
+#   WANDB_MODE=offline sbatch ...   (then `wandb sync runs/**/wandb/offline-run-*` later)
+export WANDB_MODE="${WANDB_MODE:-online}"
 
 echo "[cf-sweep] python @@ENTRY_SCRIPT@@ -c @@CONFIG_PATH@@"
 python @@ENTRY_SCRIPT@@ -c @@CONFIG_PATH@@

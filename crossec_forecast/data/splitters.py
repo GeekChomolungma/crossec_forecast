@@ -1,6 +1,6 @@
 import pandas as pd
 import numpy as np
-from typing import List, Tuple, Set, Union
+from typing import Any, List, Tuple, Set, Union
 
 
 class TimeSplitter:
