@@ -38,14 +38,14 @@ class SplitConfig:
 
 @dataclass
 class DataSchema:
-    path: str = "./data/mock_standar_panel.csv"
+    path: str = ""
     target_col: str = "logret1_win"
     fwd_ret_col: str = "fwd_logret_1"
     timestamp_col: str = "timestamp"
     symbol_col: str = "symbol"
     feature_pattern: str = r"^crossec_.*_mad_Zscore$"
     feature_cols: Optional[List[str]] = None   # explicit whitelist; overrides feature_pattern
-    seq_len: int = 6
+    seq_len: int = 512
     split: SplitConfig = field(default_factory=SplitConfig)
     batch_size: int = 128
     shuffle_train: bool = True

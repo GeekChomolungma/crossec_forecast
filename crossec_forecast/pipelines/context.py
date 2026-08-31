@@ -28,7 +28,7 @@ def load_config(
     overrides: Optional[Sequence[str]] = None,
 ) -> DictConfig:
     """
-    Merge, left to right:  structured schema  ->  one or more YAML files  ->  CLI overrides.
+    Merge, the right is the winner, from left to right:  structured schema  <-  one or more YAML files  <-  CLI overrides.
 
     ``config_path`` may be a single path or a list of fragment paths composed in order
     (e.g. a base config plus a per-model fragment).

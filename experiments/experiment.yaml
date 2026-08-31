@@ -17,7 +17,7 @@ experiment:
 run:
   name: null                 # auto: <timestamp>_<model>_<hash>; set to pin a folder
   output_root: ./runs        # artifacts -> ./runs/<experiment.name>/<run.name>/
-  tags: [crossec, panel, L6]
+  tags: [crossec, panel, L512]
 
 # ---- data / split ---------------------------------------------------------------------
 data:
@@ -28,7 +28,7 @@ data:
   symbol_col: symbol
   feature_pattern: '^crossec_.*_mad_Zscore$'
   feature_cols: null         # explicit whitelist (list of names) — overrides feature_pattern
-  seq_len: 6                 # lookback window L (current + 5 past bars)
+  seq_len: 512                 # lookback window L (current + 5 past bars)
   split:
     train_ratio: 0.70
     val_ratio: 0.15
@@ -36,7 +36,7 @@ data:
     embargo_steps: 1         # purged timestamps between splits
   batch_size: 64
   shuffle_train: true
-  num_workers: 0
+  num_workers: 4
   drop_last: false
 
 # ---- training / optimisation --------------------------------------------------------
