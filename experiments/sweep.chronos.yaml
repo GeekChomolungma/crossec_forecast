@@ -19,6 +19,13 @@ entry: train
 common_overrides:
   - experiment.name=sweep_chronos_bolt_v1
   - wandb.group=sweep_chronos_bolt_v1
+  # Explicit hooks onto the shared data.seq_len / data.batch_size / run.tags defaults in
+  # experiment.yaml (currently identical to base — seq_len is a deliberate cross-model
+  # control variable). Diverge Chronos here later without touching the shared base file,
+  # e.g. context_length wants a different seq_len than the from-scratch models.
+  - data.seq_len=512
+  - data.batch_size=1024
+  - "run.tags=[crossec, panel, L512, chronos]"
 
 variants:
   - name: cbolt_small
@@ -33,13 +40,14 @@ variants:
       - "model.config={model_id: amazon/chronos-bolt-base, loss_type: huber, head_hidden: 32}"
 
 grid:
-  train.lr: [0.001, 0.0005]
+  train.lr: [0.001]
   experiment.seed: [42, 123]
 # => 2 variants x 2 lr x 2 seed = 8 jobs
 
 slurm:
   extra_sbatch: []               # e.g. ["--account=prjs1859", "--qos=normal"]
-  # env_script: path sourced inside each rendered .sbatch to activate the interpreter.
-  # Default (unset) keeps "${ROOT_BASE}/load_exp_env.sh". Point it at the env that has
-  # `chronos` if your cluster keeps a separate one, e.g.:
-  # env_script: "${ROOT_BASE}/load_exp_env_chronos.sh"
+  # Sourced inside each rendered .sbatch to activate the interpreter. The backslash
+  # escapes the OmegaConf interpolation so the literal `${ROOT_BASE}` reaches the
+  # .sbatch and bash expands it at job runtime (dual /projects|/gpfs mount).
+  # This env must be Python 3.11+ with `pip install -e ".[chronos]"` (conda: py311).
+  env_script: '\${ROOT_BASE}/load_exp_env_311.sh'

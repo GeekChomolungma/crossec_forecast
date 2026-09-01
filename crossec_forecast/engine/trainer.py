@@ -1,11 +1,13 @@
 from pathlib import Path
 from typing import Dict, Any, Optional
+import sys
 import time
 import os
 import torch
 import torch.nn as nn
 import pandas as pd
 import numpy as np
+from tqdm.auto import tqdm
 
 from ..configs.default_config import TrainConfig
 from ..models.base import BaseClassifierModel
@@ -79,13 +81,15 @@ class Trainer:
             return torch.device("cpu")
         return torch.device(device_str)
 
-    def train_epoch(self, train_loader) -> float:
+    def train_epoch(self, train_loader, epoch: Optional[int] = None) -> float:
         """Stage 1: Gradient Backpropagation and Feature Space Shaping."""
         self.model.train()
         total_loss = 0.0
         num_batches = 0
 
-        for batch in train_loader:
+        desc = f"Epoch {epoch:02d}/{self.config.epochs:02d} [train]" if epoch else "train"
+        pbar = tqdm(train_loader, desc=desc, leave=False, file=sys.stdout, mininterval=5.0, dynamic_ncols=True)
+        for batch in pbar:
             x = batch["x"].to(self.device)
 
             self.optimizer.zero_grad()
@@ -99,11 +103,12 @@ class Trainer:
             self.optimizer.step()
             total_loss += loss.item()
             num_batches += 1
+            pbar.set_postfix(loss=f"{total_loss / num_batches:.4f}")
 
         return total_loss / max(1, num_batches)
 
     @torch.no_grad()
-    def validate(self, val_loader) -> Dict[str, float]:
+    def validate(self, val_loader, epoch: Optional[int] = None) -> Dict[str, float]:
         """Stage 2: Validation Business Metric (Cross-Sectional Rank IC) Evaluation."""
         self.model.eval()
         total_loss = 0.0
@@ -113,13 +118,16 @@ class Trainer:
         all_returns = []
         all_dates = []
 
-        for batch in val_loader:
+        desc = f"Epoch {epoch:02d}/{self.config.epochs:02d} [val]" if epoch else "val"
+        pbar = tqdm(val_loader, desc=desc, leave=False, file=sys.stdout, mininterval=5.0, dynamic_ncols=True)
+        for batch in pbar:
             x = batch["x"].to(self.device)
 
             raw = self.model(x)
             loss = self.model.compute_loss(raw, batch)
             total_loss += loss.item()
             num_batches += 1
+            pbar.set_postfix(loss=f"{total_loss / num_batches:.4f}")
 
             scores = self.model.to_score(raw).detach().cpu().numpy().reshape(-1)
             returns = batch["fwd_logret"].squeeze(-1).numpy()
@@ -149,8 +157,8 @@ class Trainer:
         self.logger.info(f"Starting training on device: {self.device}")
 
         for epoch in range(1, self.config.epochs + 1):
-            train_loss = self.train_epoch(train_loader)
-            val_metrics = self.validate(val_loader)
+            train_loss = self.train_epoch(train_loader, epoch=epoch)
+            val_metrics = self.validate(val_loader, epoch=epoch)
             val_ic = val_metrics["val_mean_rank_ic"]
             val_loss = val_metrics["val_loss"]
 

@@ -15,6 +15,13 @@ entry: train
 common_overrides:
   - experiment.name=sweep_moment_head_only_v1
   - wandb.group=sweep_moment_head_only_v1
+  # Explicit hooks onto the shared data.seq_len / data.batch_size / run.tags defaults in
+  # experiment.yaml (currently identical to base — seq_len is a deliberate cross-model
+  # control variable). Diverge MOMENT here later without touching the shared base file,
+  # e.g. if MOMENT ever wants a batch_size independent of the from-scratch models.
+  - data.seq_len=512
+  - data.batch_size=1024
+  - "run.tags=[crossec, panel, L512, moment]"
 
 variants:
   - name: moment_small
@@ -27,10 +34,11 @@ variants:
       - "model.config={model_id: AutonLab/MOMENT-1-base, task: classification}"
 
 grid:
-  train.lr: [0.001, 0.0005]
+  train.lr: [0.001]
   experiment.seed: [42, 123]
 # => 2 variants x 2 lr x 2 seed = 8 jobs
 
 slurm:
   extra_sbatch: []
   # env_script: "${ROOT_BASE}/load_exp_env_moment.sh"   # activate the momentfm env
+  env_script: '\${ROOT_BASE}/load_exp_env.sh'

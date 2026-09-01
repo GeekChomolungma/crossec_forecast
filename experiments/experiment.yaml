@@ -28,13 +28,13 @@ data:
   symbol_col: symbol
   feature_pattern: '^crossec_.*_mad_Zscore$'
   feature_cols: null         # explicit whitelist (list of names) — overrides feature_pattern
-  seq_len: 512                 # lookback window L (current + 5 past bars)
+  seq_len: 512                 # lookback window L; fixed as a control variable across model comparisons
   split:
     train_ratio: 0.70
     val_ratio: 0.15
     test_ratio: 0.15
     embargo_steps: 1         # purged timestamps between splits
-  batch_size: 64
+  batch_size: 1024              # sized for H100 80GB+; lower this on smaller GPUs
   shuffle_train: true
   num_workers: 4
   drop_last: false

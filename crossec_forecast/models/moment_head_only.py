@@ -68,6 +68,12 @@ class MomentHeadOnly(PretrainedBackboneModel):
                 "needs the Trainer optimizer-hook work — see pretrained_research.md section 8."
             )
 
+        # NB: no force_download here. A sweep runs N jobs concurrently against one
+        # shared HF cache on /projects (NFS); force_download makes every job re-fetch
+        # model.safetensors and they clobber each other's blob mid-rename -> truncated
+        # file -> SafetensorError "header too small". Pre-warm the cache once on a
+        # login node (huggingface-cli download AutonLab/MOMENT-1-{small,base}); jobs
+        # then just read it. Set HF_HUB_OFFLINE=1 in the .sbatch to force cache-only.
         _moment = momentfm.MOMENTPipeline.from_pretrained(
             self.model_id, model_kwargs={"task_name": "embedding"},
         )

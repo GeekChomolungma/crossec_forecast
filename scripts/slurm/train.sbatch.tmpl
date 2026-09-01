@@ -24,6 +24,10 @@
 # header for your account; if you launch from the /gpfs mount fix the /projects prefix.
 # =====================================================================================
 
+# --- 固化 HF 缓存路径与离线模式 ---
+export HF_HOME="/projects/prjs1859/users/xzhang4/.cache/huggingface"
+export HF_HUB_OFFLINE=1
+
 set -euo pipefail
 
 if [[ -z "${ROOT_BASE:-}" ]]; then
@@ -44,6 +48,34 @@ source "@@ENV_SCRIPT@@"
 
 which python
 python -c "import torch; print('torch ok', torch.__version__, '| cuda', torch.cuda.is_available())"
+
+# ==============================================================================
+# HF Cache Manual Management Guide (Pre-warm before launching jobs)
+# ==============================================================================
+#
+# 1. 登录节点预下载 (Download):
+#    # 下载单个模型
+#    huggingface-cli download AutonLab/MOMENT-1-small
+#
+#    # 批量下载多个模型
+#    for repo in "AutonLab/MOMENT-1-small" "AutonLab/MOMENT-1-base" "amazon/chronos-bolt-small"; do
+#      huggingface-cli download "${repo}"
+#    done
+#
+# 2. 缓存查看与删除 (Inspect & Delete):
+#    # 查看所有已缓存的 HF 模型与占用空间
+#    huggingface-cli scan-cache
+#
+#    # 交互式安全删除指定模型缓存 (推荐)
+#    huggingface-cli delete-cache
+#
+#    # 硬删除指定模型缓存 (根据 repo_id 构造路径):
+#    # rm -rf "${HF_HOME:-$HOME/.cache/huggingface}/hub/models--AutonLab--MOMENT-1-small"
+#
+#    # 清空所有 HF 缓存 (慎用):
+#    # rm -rf "${HF_HOME:-$HOME/.cache/huggingface}/hub"/*
+# ==============================================================================
+
 
 # --- business ----------------------------------------------------------------------
 cd "${PROJECT_DIR}"
