@@ -13,9 +13,11 @@
 @@EXTRA_SBATCH@@
 # =====================================================================================
 # TEMPLATE for scripts/sweep.py --launcher slurm. For each sweep job it is copied to
-# runs/_sweeps/<...>/sbatch/<job>.sbatch with five markers substituted (double-at tokens):
+# runs/_sweeps/<...>/sbatch/<job>.sbatch with six markers substituted (double-at tokens):
 # JOB_NAME, PROJECT_DIR (cluster clone path), ENTRY_SCRIPT (scripts/train.py or
-# scripts/benchmark.py), CONFIG_PATH (this job's resolved config), EXTRA_SBATCH.
+# scripts/benchmark.py), CONFIG_PATH (this job's resolved config), EXTRA_SBATCH,
+# ENV_SCRIPT (interpreter-activation script; from spec `slurm.env_script`, default
+# "${ROOT_BASE}/load_exp_env.sh" — set it per env-specific sweep spec).
 # Everything else — including the bash ${...} below — is kept verbatim.
 #
 # Edit THIS file, not the rendered copies. Adjust the -p / -t / --mem-per-gpu / -o / -e
@@ -38,7 +40,7 @@ PROJECT_DIR="${PROJECT_DIR:-@@PROJECT_DIR@@}"
 LOG_DIR="${LOG_DIR:-${ROOT_BASE}/users/${USER}/slurm/logs}"
 mkdir -p "${LOG_DIR}"
 
-source "${ROOT_BASE}/load_exp_env.sh"
+source "@@ENV_SCRIPT@@"
 
 which python
 python -c "import torch; print('torch ok', torch.__version__, '| cuda', torch.cuda.is_available())"

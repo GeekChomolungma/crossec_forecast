@@ -1,0 +1,21 @@
+# Chronos-Bolt head-only fragment — Pattern B (native forecast head) x frozen + linear head.
+#
+# Needs the `chronos` backend (recent Python):  pip install -e ".[chronos]"
+# Run from that interpreter:
+#   python scripts/train.py -c experiments/experiment.yaml -c experiments/models/chronos_bolt_head_only.yaml
+#
+# Only overrides `data.target_col` (regress the next-bar return, not the binary win
+# label) and the `model:` block; everything else inherits from experiment.yaml.
+data:
+  target_col: fwd_logret_1        # fwd_ret_col stays fwd_logret_1 -> same series for Rank IC
+
+model:
+  name: chronos_bolt_head_only
+  config:
+    model_id: amazon/chronos-bolt-small   # tiny | mini | small | base
+    context_length: null                  # null = full data.seq_len window
+    prediction_length: 1                  # next bar
+    head_hidden: null                     # null = LayerNorm + Linear(D, 1); int = + hidden layer
+    loss_type: huber                      # huber | mse
+    huber_delta: 1.0
+    series_chunk: 4096                    # max series per Chronos call (B*D per batch)

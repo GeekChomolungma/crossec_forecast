@@ -76,6 +76,20 @@ class PanelTimeSeriesDataset(Dataset):
         timestamps_raw = df[timestamp_col].values
         symbols_raw = df[symbol_col].values
 
+        # Membership key for the split filter. TimeSplitter yields pandas Timestamps
+        # (iterating a Series), while `timestamps_raw[i]` is a numpy datetime64 for a
+        # datetime column — and `np.datetime64 in {Timestamp, ...}` (or across datetime64
+        # units) is False on some pandas/numpy combos, which would silently drop EVERY
+        # sample. For a datetime column canonicalize both sides to int64-ns; for int/str
+        # tick ids plain set membership already matches.
+        if allowed_timestamps is None:
+            ts_key, allowed_keys = timestamps_raw, None
+        elif pd.api.types.is_datetime64_any_dtype(df[timestamp_col]):
+            ts_key = df[timestamp_col].to_numpy(dtype="datetime64[ns]").astype("int64")
+            allowed_keys = {pd.Timestamp(t).value for t in allowed_timestamps}
+        else:
+            ts_key, allowed_keys = timestamps_raw, set(allowed_timestamps)
+
         # Target routing: `target_col` is whatever column drives training loss for this
         # task (binary win label, a raw forward return for a regression/point-forecast
         # model, a longer-horizon column, ...). `fwd_ret_col` is the realized forward
@@ -110,7 +124,7 @@ class PanelTimeSeriesDataset(Dataset):
                 curr_ts = timestamps_raw[curr_row_idx]
 
                 # Check timestamp filter if provided (e.g. Train / Val / Test split)
-                if allowed_timestamps is not None and curr_ts not in allowed_timestamps:
+                if allowed_keys is not None and ts_key[curr_row_idx] not in allowed_keys:
                     continue
 
                 curr_y = target_raw[curr_row_idx]

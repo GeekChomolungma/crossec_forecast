@@ -1,0 +1,17 @@
+# MOMENT head-only fragment — Pattern A (representation) x frozen encoder + linear probe.
+#
+# Needs the `momentfm` backend (Python 3.9-3.11):  pip install -e ".[moment]"
+# Run from that interpreter:
+#   python scripts/train.py -c experiments/experiment.yaml -c experiments/models/moment_head_only.yaml
+#
+# Default task = classification -> trains on the base `logret1_win` target, directly
+# comparable to mlp / lstm / dlinear. Only the `model:` block is overridden.
+model:
+  name: moment_head_only
+  config:
+    model_id: AutonLab/MOMENT-1-small   # small | base | large
+    task: classification                # classification (logret1_win) | regression (needs data.target_col=fwd_logret_1)
+    head_hidden: null                   # null = LayerNorm + Linear(d_model, 1); int = + hidden layer
+    # regression only:
+    # loss_type: huber                  # huber | mse
+    # huber_delta: 1.0

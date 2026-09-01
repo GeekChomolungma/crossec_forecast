@@ -205,10 +205,25 @@ grid:                            # 笛卡尔展开，叠加在每个 variant 上
 
 slurm:                           # 仅 --launcher slurm 时使用
   extra_sbatch: []               # 追加 #SBATCH 行，如 ["--account=prjs1859", "--qos=normal"]
-                                 # 资源申请 / 环境激活写在 scripts/slurm/train.sbatch.tmpl 头部
+  # env_script: "${ROOT_BASE}/load_exp_env.sh"   # 每份 spec 可指定环境激活脚本；
+  #                                              # 资源申请写在 scripts/slurm/train.sbatch.tmpl 头部
 ```
 
 上例 = 2 variants × 2 lr × 2 seed = **8 个 job**。
+
+### 跨环境：一份 sweep spec 对应一个环境
+
+`sweep.py` 不切 Python 解释器，`entry: train` 的每个 job 是单模型、后端缺失就响亮失败。
+所以 **TSFM 系列按环境各写一份 sweep spec**，每份只列该环境能跑的模型：
+
+- `experiments/sweep.example.yaml` —— 纯 Python 架构（mlp / lstm / dlinear），任何环境都能跑。
+- `experiments/sweep.chronos.yaml` —— `chronos_bolt_head_only` 等，需 `chronos` 后端，从装了它的解释器里跑。
+- 要扫别环境的模型（如 3.9–3.11 环境的 `moment`），拷一份、换掉 variants、从那个解释器里跑。
+
+用法就是「手动切到对应环境 → `python scripts/sweep.py -s <该环境的 spec>`」，下游 sbatch 生成与提交无感知。
+`--launcher local` / `print` 用当前 PATH 上的 `python` 即可；`--launcher slurm` 时每份 spec 可用
+`slurm.env_script` 指定 `.sbatch` 里 `source` 的环境激活脚本（不设则沿用
+`${ROOT_BASE}/load_exp_env.sh`）。
 
 ```bash
 python scripts/sweep.py -s experiments/sweep.example.yaml --launcher print               # 只打印命令
@@ -337,4 +352,4 @@ print(result["summary"], result["checkpoint"])
   模型仍会注册但 `build_model` 报 `ModelDependencyError`，`BenchmarkEngine` 扫描整份名单、自动跳过
   当前环境跑不了的并告警。共用一份 `benchmark.models` 名单，各环境跑各自能跑的子集，跑完 concat 各份
   `benchmark_summary.csv` 再按 `test_rank_ic` 排序即可。详见
-  [`crossec_forecast/models/pretrained_research.md`](./crossec_forecast/models/pretrained_research.md) §1。
+  [`crossec_forecast/models/pretrained_research.md`](./crossec_forecast/models/pretrained_research.md) §2。

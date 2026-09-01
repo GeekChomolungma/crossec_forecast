@@ -31,7 +31,17 @@ full analysis live in [`crossec_forecast/models/pretrained_research.md`](crossec
   guard; `BenchmarkEngine` scans the roster and skips unavailable entries with a warning;
   `pyproject` extras `[chronos]` / `[moment]`. Wrappers keep heavy imports inside
   `__init__`; models are classified by Python version, not env name. See
-  `pretrained_research.md` §1.
+  `pretrained_research.md` §2.
+- **First two TSFM wrappers, both frozen backbone + linear probe:**
+  `chronos_bolt_head_only` (B / point_forecast, `.[chronos]`) and `moment_head_only`
+  (A / binary_prob, `.[moment]`). The frozen backbone is held as a **non-submodule**
+  attribute (`object.__setattr__` for MOMENT, which is itself an `nn.Module`) so
+  `parameters()` / `state_dict()` stay head-only.
+- **`PanelTimeSeriesDataset` timestamp-filter fix.** The split filter compared
+  `np.datetime64` row values against a set of `pandas.Timestamp` from `TimeSplitter`;
+  on some pandas/numpy combos that is always `False` → every sample silently dropped
+  (`num_samples=0`). Now canonicalized to int64-ns for datetime columns (int/str tick
+  ids unchanged). Surfaced when the `.venv310` interpreter was set up.
 
 ---
 
@@ -88,7 +98,7 @@ targets (`fwd_logret_3` / `_6`) need a configurable return column. Tie this to C
 ## C8 — model-supplied optimizer construction order
 
 If a model gains `configure_optimizers(cfg) -> Optimizer | None` (for LoRA param groups /
-discriminative LR — see `pretrained_research.md` §7), `Trainer.__init__` must resolve the
+discriminative LR — see `pretrained_research.md` §8), `Trainer.__init__` must resolve the
 optimizer (model hook else default AdamW) **before** building the scheduler, which
 references `self.optimizer`.
 

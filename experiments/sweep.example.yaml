@@ -29,14 +29,10 @@ variants:
     overrides:
       - model.name=dlinear
       - "model.config={kernel_size: 3, individual: false}"
-  # v1 only sweeps the from-scratch architectures above (mlp / lstm / dlinear).
-  # A pretrained/foundation-model backbone (e.g. Chronos2) plugs in as its own variant
-  # once it exists as a crossec_forecast.models.PretrainedBackboneModel subclass — just
-  # add a block like:
-  #   - name: chronos2
-  #     overrides:
-  #       - model.name=chronos2
-  #       - "model.config={pretrained_path: /path/to/checkpoint, freeze_backbone: true}"
+  # This spec sweeps only the pure-python architectures (mlp / lstm / dlinear), which run
+  # in any environment. TSFM backbones whose backend library lives in a separate venv get
+  # their OWN per-environment sweep spec (one spec per env, each listing only models
+  # runnable there) — see experiments/sweep.chronos.yaml and EXPERIMENTS.md section 5.
 
 grid:
   train.lr: [0.001]

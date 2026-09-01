@@ -33,8 +33,8 @@ _log = logging.getLogger(__name__)
 # ``import crossec_forecast`` for every model — including the ones this interpreter
 # could run. Add new TSFM wrappers here by module name.
 _OPTIONAL_WRAPPER_MODULES: tuple = (
-    # "chronos_bolt",
-    # "moment",
+    "chronos_bolt_head_only",
+    "moment_head_only",
 )
 
 for _modname in _OPTIONAL_WRAPPER_MODULES:

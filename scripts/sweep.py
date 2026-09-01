@@ -113,6 +113,9 @@ def launch_slurm(spec, jobs, entry: str, sweep_root: Path, dry_run: bool) -> int
     tmpl = SLURM_TMPL.read_text(encoding="utf-8")
     s = OmegaConf.to_container(spec.get("slurm", {}) or {}, resolve=True) or {}
     extra = "\n".join(f"#SBATCH {x}" for x in (s.get("extra_sbatch") or []))
+    # Per-spec interpreter activation — lets one sweep spec per environment stay fully
+    # hands-off on SLURM. Unset keeps the template's historical default.
+    env_script = str(s.get("env_script") or "${ROOT_BASE}/load_exp_env.sh")
 
     sbatch_dir = sweep_root / "sbatch"
     sbatch_dir.mkdir(parents=True, exist_ok=True)
@@ -121,6 +124,7 @@ def launch_slurm(spec, jobs, entry: str, sweep_root: Path, dry_run: bool) -> int
         "@@PROJECT_DIR@@": str(PROJECT_ROOT),
         "@@ENTRY_SCRIPT@@": f"scripts/{entry}.py",
         "@@EXTRA_SBATCH@@": extra,
+        "@@ENV_SCRIPT@@": env_script,
     }
     for job in jobs:
         rendered = tmpl

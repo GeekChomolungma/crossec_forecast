@@ -30,7 +30,7 @@ score" directly. So a wrapper has to bridge one of three ways:
 
 **Implication for the `model(x)` vs `model(x, **kwargs)` decision:** only Pattern B needs
 extra tensors threaded through the loader/Trainer. Under Pattern A everything the backbone
-needs is already inside `x`. See the requirements matrix in §4.
+needs is already inside `x`. See the requirements matrix in §5.
 
 ### A vs B is not "packed into x vs passed separately" — it's *which part of the model you use*
 
@@ -83,7 +83,39 @@ forecaster" is a genuinely interesting second question — not as a replacement 
 
 ---
 
-## 1. Environments — TSFM backends split by Python version
+## 1. Where we are — coverage in the (signal axis × adaptation paradigm) space
+
+Any pretrained-model integration sits at the intersection of **two independent axes**:
+
+- **Signal axis** — which output of the pretrained model the wrapper consumes. Its
+  *internal representation* (embeddings / hidden states) = **A**; its *own native forecast
+  head* (point / quantile) = **B**. This is the A/B essence defined in §0; it fixes
+  `output_kind`, what `to_score` does, and the natural loss.
+- **Adaptation paradigm** — how much of the pretrained model is trained: zero-shot,
+  frozen backbone + trainable head, PEFT (LoRA / adapters), or full fine-tune.
+
+The axes are orthogonal: a trainable head can sit on top of representations *or* native
+forecasts *or* nothing (zero-shot). The framework only requires a wrapper to implement
+`to_score(raw) -> [B]` (plus `compute_loss` if it trains) — everything else in the grid is
+a modelling choice, not a constraint.
+
+The matrix below tracks which cells we have actually tried, so the breadth of the
+exploration is visible at a glance. It fills in as the benchmark deepens.
+
+| signal ↓  /  paradigm → | zero-shot | frozen backbone + trainable head | PEFT (LoRA / adapter) | full fine-tune |
+| --- | --- | --- | --- | --- |
+| **A — representation** (embeddings / hidden states) | *planned: UniTS, MOMENT zero-shot embed* | **`moment_head_only`** — frozen MOMENT encoder `embed` → `[B, d_model]` → `LayerNorm + Linear(d_model, 1)` head, BCE on `logret1_win` | *planned: MOMENT LoRA (see §8), UniTS LoRA* | — |
+| **B — native forecast head** (point / quantile) | *planned: Chronos-Bolt / TimesFM zero-shot factor* | **`chronos_bolt_head_only`** — frozen Bolt → per-channel 1-step forecast `[B, D]` → `LayerNorm + Linear(D, 1)` head, Huber vs `fwd_logret_1` | *planned: TimesFM 2.5 LoRA, Chronos-2* | — |
+
+Legend: **bold** = implemented and in the benchmark · *italic* = candidate, not started ·
+`—` = not attempted / not planned.
+
+Paradigm is itself a legitimate benchmark axis: *same model, head-tune vs LoRA vs
+full-FT* is as meaningful a comparison as *same paradigm, model A vs B vs C*.
+
+---
+
+## 2. Environments — TSFM backends split by Python version
 
 TSFM libraries pull mutually-incompatible dependency pins and Python-version constraints,
 so several **cannot coexist in one interpreter** (e.g. `chronos-forecasting` runs on a
@@ -93,8 +125,8 @@ name** (env names are yours to choose):
 
 | backend needs | extra | example models |
 | --- | --- | --- |
-| Python 3.11+ | `pip install -e ".[chronos]"` | `chronos_bolt`, `chronos2`, ... |
-| Python 3.9–3.11 | `pip install -e ".[moment]"` | `moment` |
+| Python 3.11+ | `pip install -e ".[chronos]"` | `chronos_bolt_head_only`, `chronos2`, ... |
+| Python 3.9–3.11 | `pip install -e ".[moment]"` | `moment_head_only`, ... |
 
 (Confirm each package's exact supported range from its own metadata.)
 
@@ -123,7 +155,7 @@ against the same `experiment.yaml`; each writes a `benchmark_summary.csv` sorted
 
 ---
 
-## 2. Summary table
+## 3. Summary table
 
 One table: the models you named first, then recent / trending ones (2025–2026) continuing
 in the same columns.
@@ -149,9 +181,9 @@ in the same columns.
 
 ---
 
-## 3. Per-model detail
+## 4. Per-model detail
 
-### 3.1 TimesFM (Google Research)
+### 4.1 TimesFM (Google Research)
 
 - **Repo:** https://github.com/google-research/timesfm • checkpoints on HF (`google/timesfm-2.5-200m-pytorch`, `google/timesfm-3.0-pytorch`).
 - **Architecture:** decoder-only, patched input, point + optional quantile head. PyTorch primary; JAX/Flax also available.
@@ -166,7 +198,7 @@ in the same columns.
 - **Fine-tuning:** LoRA via HF Transformers + PEFT (examples in repo, 2.5+).
 - **Fit here:** Pattern A — take patch embeddings / last hidden state over the `[6,24]` window (treat each of 24 channels as a covariate or stack), add a head. Pattern B — per-symbol return series as target + 24 features as `past_future_covariates` (3.0). Very short `L=6` is the main obstacle for B.
 
-### 3.2 Moirai / Moirai-2 (Salesforce, `uni2ts`)
+### 4.2 Moirai / Moirai-2 (Salesforce, `uni2ts`)
 
 - **Repo:** https://github.com/SalesforceAIResearch/uni2ts • weights `Salesforce/moirai-1.0-R-{small,base,large}`, `Salesforce/moirai-2.0-R-small`.
 - **Architecture:** 1.x = masked-**encoder** universal transformer, "any-variate" attention, multi-patch-size, distributional head. 2.0 = decoder, quantile loss, multi-token prediction, patch-level masking.
@@ -175,7 +207,7 @@ in the same columns.
 - **License:** **CC-BY-NC-4.0 weights** — non-commercial only. Flag if this repo's output is ever productionized.
 - **Fit here:** Pattern A — Moirai-1.x encoder is a natural embedding extractor for `[6,24]` (any-variate attention already ingests D channels). Pattern B — target=fwd return, 24 feats as `feat_dynamic_real`.
 
-### 3.3 Chronos family (Amazon Science)
+### 4.3 Chronos family (Amazon Science)
 
 - **Repo:** https://github.com/amazon-science/chronos-forecasting • `pip install chronos-forecasting` • Apache-2.0 (source **and** weights).
 - **Chronos-T5 (original):** 8M–710M, LLM-style — quantize series into tokens, T5 seq2seq, sample trajectories. Univariate.
@@ -191,7 +223,7 @@ in the same columns.
   Covariates = extra columns in `context_df` + their known-future values in `future_df`.
 - **Fit here:** **Chronos-2 is the strongest match** for this repo's use case (24 exogenous cross-sectional features → forecast forward return) — Pattern B, covariate-informed. Also usable as Pattern A (encoder embeddings). Older Chronos = Pattern A / C only.
 
-### 3.4 Kronos (financial K-line foundation model)
+### 4.4 Kronos (financial K-line foundation model)
 
 - **Repo:** https://github.com/shiyu-coder/Kronos • weights `NeoQuasar/Kronos-{mini,small,base}` + tokenizers `NeoQuasar/Kronos-Tokenizer-{base,2k}` • MIT • AAAI 2026.
 - **Design:** two-stage — a learned tokenizer quantizes multi-dim **OHLCV** bars into hierarchical discrete tokens; a decoder-only autoregressive transformer over those tokens. Purpose-built for the "language of markets", trained on 45+ exchanges.
@@ -211,7 +243,7 @@ in the same columns.
 - **Fine-tuning:** supported (`finetune/train_tokenizer.py`, `finetune/train_predictor.py`, `torchrun`, Qlib for data prep; A-share example).
 - **Fit here:** Pattern B, finance-native — feed each symbol's OHLCV window, use forecast next-bar logret as the score. Needs data-layer change to surface raw OHLCV. Pattern A only if we fork the model to return hidden states.
 
-### 3.5 Timer / Timer-XL / Sundial (Tsinghua `thuml`)
+### 4.5 Timer / Timer-XL / Sundial (Tsinghua `thuml`)
 
 - **Repos:** https://github.com/thuml/Large-Time-Series-Model (Timer + Sundial), https://github.com/thuml/Timer-XL, fine-tune tooling in https://github.com/thuml/OpenLTM • MIT.
 - **Timer** (ICML'24): decoder-only GPT-style, "S3" (single-series sequence) flattening; tasks = forecast / imputation / anomaly. `thuml/timer-base-84m`.
@@ -226,7 +258,7 @@ in the same columns.
 - **Covariates:** none native (Timer/Sundial univariate; Timer-XL takes multi-dim but no dedicated exogenous channel).
 - **Fit here:** Pattern A — grab hidden states from the causal stack over the flattened window; per-channel or concat, then head. Pattern B for a single target series. `trust_remote_code=True` required.
 
-### 3.6 UniTS (Harvard MIMS / Zitnik lab)
+### 4.6 UniTS (Harvard MIMS / Zitnik lab)
 
 - **Repo:** https://github.com/mims-harvard/UniTS • pretrained weights in GitHub Releases • MIT • NeurIPS 2024.
 - **Design:** one backbone (sequence + variable attention, dynamic linear operator) for **forecasting, classification, imputation, anomaly** with **no task-specific heads** — tasks selected via task tokenization + learnable prompt tokens. Strong zero-/few-shot + prompt learning across 38 datasets incl. finance.
@@ -234,7 +266,7 @@ in the same columns.
 - **Maturity:** small repo, low commit count, no packaged `pip` inference API — expect to vendor the model code and its config. Tutorial.md covers custom data.
 - **Fit here:** **Pattern A with the least glue** — UniTS already has a classification task mode producing class logits; point it at the `[6,24]` window with `num_class=2` (or forecasting mode + head). The prompt-token mechanism could even absorb a "cross-sectional rank" framing.
 
-### 3.7 MOMENT (CMU Auton Lab)
+### 4.7 MOMENT (CMU Auton Lab)
 
 - **Repo:** https://github.com/moment-timeseries-foundation-model/moment • `pip install momentfm` • weights `AutonLab/MOMENT-1-{small,base,large}` • MIT • ICML 2024.
 - **Design:** T5-encoder over fixed **512**-length patched input, pretrained by masked patch reconstruction. One model, many task heads.
@@ -250,7 +282,7 @@ in the same columns.
 - **Fine-tuning:** PEFT demonstrated (ECG tutorial); full training via `moment-research`.
 - **Fit here:** **Pattern A, clean** — `task_name="embedding"` → `[B, d]` embedding of the `[24, 6→pad512]` window → trainable head; or `task_name="classification"` with `num_class=2` and let MOMENT's own head be the trainable part. Padding 6→512 is wasteful but works; consider `MOMENT-1-small`.
 
-### 3.8 Extras (trending)
+### 4.8 Extras (trending)
 
 - **Toto 2.0 (Datadog)** — https://github.com/DataDog/toto, weights `Datadog/Toto-Open-Base-1.0` and the 2.0 family (4M–2.5B). Multivariate, alternating time/variate attention, quantile output, 2T+ training points. Apache-2.0 open weights. Pattern A (variate attention ingests the 24 channels) or B. Their **BOOM** benchmark is observability-flavored, not finance — treat leaderboard numbers with caution for our domain.
 - **Time-MoE** — https://github.com/Time-MoE/Time-MoE, `Maple728/TimeMoE-{50M,200M}` (+ up to 2.4B). Decoder-only sparse MoE, ctx 4096, arbitrary horizon, Apache-2.0. Pattern A/B; cheap at inference despite size.
@@ -261,7 +293,7 @@ in the same columns.
 
 ---
 
-## 4. Extra-input requirement matrix (drives the `model(x)` vs `model(x, **kwargs)` decision)
+## 5. Extra-input requirement matrix (drives the `model(x)` vs `model(x, **kwargs)` decision)
 
 **How to read this table.** Each row is a candidate model. Columns 2 and 3 answer: *"if we
 wrap it with that pattern, does the wrapper need any tensor beyond the standard
@@ -308,7 +340,7 @@ rather than per-model hacks.
 
 ---
 
-## 5. Suggested priority for this repo
+## 6. Suggested priority for this repo
 
 1. **Chronos-2** — Apache-2.0, covariate-informed, current GIFT-Eval #1, `pip`-installable, clean `predict_df`. Do it both as Pattern A (embed+head) and Pattern C (zero-shot factor) first; Pattern B once covariates are threaded.
 2. **MOMENT (small/base)** — MIT, `momentfm` packaged, `task_name` switch makes Pattern A almost trivial (`n_channels=24`, `num_class=2`).
@@ -325,7 +357,7 @@ Deferred / external-only: **TimeGPT** (closed API), **TabPFN-TS** (evaluate lice
 
 ---
 
-## 6. Open questions before implementation
+## 7. Open questions before implementation
 
 - **Lookback (decided: pin one `L` for everyone, target `L=512`).** `L=6` wastes the TSFMs
   and makes cross-model comparison unfair. `L=512` saturates the 512-context models
@@ -348,7 +380,7 @@ Deferred / external-only: **TimeGPT** (closed API), **TabPFN-TS** (evaluate lice
   `PanelTimeSeriesDataset` currently exposes only zscored features + `fwd_logret` + meta.
   Add an opt-in `raw_cols` passthrough?
 - **Frozen backbone + optimizer / checkpoints:** needs real (small) changes to `Trainer` and
-  the wrappers — see the checklist in §7.
+  the wrappers — see the checklist in §8.
 - **Dependency isolation:** each wrapper's heavy import (`chronos`, `momentfm`, `uni2ts`,
   `timesfm`, …) must be lazy (inside `__init__`) or `try/except`-guarded so `import
   crossec_forecast` doesn't hard-require all of them. Add `pyproject.toml` optional extras.
@@ -357,7 +389,7 @@ Deferred / external-only: **TimeGPT** (closed API), **TabPFN-TS** (evaluate lice
 
 ---
 
-## 7. Follow-up engineering tasks (backbone freezing, LoRA, optimizer, checkpoints)
+## 8. Follow-up engineering tasks (backbone freezing, LoRA, optimizer, checkpoints)
 
 ### Background: what `AdamW(self.model.parameters())` does today
 
@@ -424,6 +456,34 @@ self.optimizer = optimizer or torch.optim.AdamW(
 
 Note: T1+T2+T3+T4 are the minimum to fine-tune a pretrained backbone properly. T1 alone is
 enough to *freeze* a backbone and train only a head at a single LR (Pattern A, no LoRA).
+
+### Worked scope estimate — LoRA for MOMENT (the first PEFT wrapper)
+
+MOMENT's own repo ships a PEFT tutorial (`peft.LoraConfig` + `get_peft_model` on the T5
+encoder, `target_modules` = the attention `q` / `v` projections), so it is technically
+straightforward. The framework changes it needs are exactly the T1–T4 bundle above,
+scoped to one wrapper — **feasible and localized, not a rewrite**:
+
+| where | change | size |
+| --- | --- | --- |
+| new `moment_lora` wrapper (or `peft: true` on `moment_head_only`) | MOMENT held **as a submodule** (so LoRA params reach `parameters()`); `get_peft_model(...)`; override `state_dict`/`load_state_dict` to persist only `requires_grad` tensors; `configure_optimizers` returning LoRA-lr / head-lr param groups; run `embed` **without** `torch.no_grad()` | ~40 lines, self-contained |
+| `Trainer` | T1 (`trainable_parameters()`) + T2 (`configure_optimizers` hook) | ~15 lines, backward-compatible |
+| `infer_pipeline` | `load_state_dict(..., strict=False)` for trimmed checkpoints | 1 line |
+| `pyproject` | add `peft` to the `[moment]` extra | 1 line |
+
+No dataset / collate / metrics / benchmark changes. What makes it more than "just a
+wrapper": it is the first time the pretrained path touches `Trainer`, and holding the
+backbone as a submodule (needed for LoRA) reintroduces the checkpoint-bloat problem that
+`state_dict` override then has to solve.
+
+Compute: backward through the MOMENT encoder (even LoRA-only) is ~10–50× the head-only
+forward cost and retains activations — fine on GPU for `small`/`base`, heavy for `large`
+and slow on CPU.
+
+**Decision for now:** ship `moment_head_only` (frozen encoder + linear probe), matching
+`chronos_bolt_head_only`'s paradigm for a clean first benchmark row. Do T1+T2+T4 in
+`Trainer` as the next milestone — it unblocks MOMENT LoRA, TimesFM 2.5 LoRA, and
+unfreezing chronos in one go.
 
 ---
 

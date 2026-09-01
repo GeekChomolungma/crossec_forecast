@@ -1,0 +1,45 @@
+# ======================================================================================
+# Per-environment sweep spec — Chronos-Bolt (needs the `chronos` backend).
+#
+# Run this from an interpreter that has `chronos-forecasting` installed
+# (pip install -e ".[chronos]", recent Python):
+#   python scripts/sweep.py -s experiments/sweep.chronos.yaml --launcher print
+#   python scripts/sweep.py -s experiments/sweep.chronos.yaml --launcher local --max-parallel 2
+#   python scripts/sweep.py -s experiments/sweep.chronos.yaml --launcher slurm
+#
+# Convention: one sweep spec per environment. Each spec lists ONLY models runnable in
+# that env, so every `entry: train` job is single-model and just works. To sweep models
+# from another env (e.g. `moment` on a Python 3.9-3.11 env), copy this file, swap the
+# variants, and run it from that interpreter.  See EXPERIMENTS.md section 5.
+# ======================================================================================
+
+base_config: experiments/experiment.yaml
+entry: train
+
+common_overrides:
+  - experiment.name=sweep_chronos_bolt_v1
+  - wandb.group=sweep_chronos_bolt_v1
+
+variants:
+  - name: cbolt_small
+    overrides:
+      - model.name=chronos_bolt_head_only
+      - data.target_col=fwd_logret_1
+      - "model.config={model_id: amazon/chronos-bolt-small, loss_type: huber, head_hidden: 32}"
+  - name: cbolt_base
+    overrides:
+      - model.name=chronos_bolt_head_only
+      - data.target_col=fwd_logret_1
+      - "model.config={model_id: amazon/chronos-bolt-base, loss_type: huber, head_hidden: 32}"
+
+grid:
+  train.lr: [0.001, 0.0005]
+  experiment.seed: [42, 123]
+# => 2 variants x 2 lr x 2 seed = 8 jobs
+
+slurm:
+  extra_sbatch: []               # e.g. ["--account=prjs1859", "--qos=normal"]
+  # env_script: path sourced inside each rendered .sbatch to activate the interpreter.
+  # Default (unset) keeps "${ROOT_BASE}/load_exp_env.sh". Point it at the env that has
+  # `chronos` if your cluster keeps a separate one, e.g.:
+  # env_script: "${ROOT_BASE}/load_exp_env_chronos.sh"

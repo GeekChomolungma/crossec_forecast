@@ -89,6 +89,58 @@ class TestModelPluginSystem(unittest.TestCase):
         with self.assertRaises(ModelDependencyError):
             build_model("needs_absent_lib", self.base_cfg)
 
+    @unittest.skipUnless(
+        is_model_available("chronos_bolt_head_only"),
+        "chronos backend not installed in this interpreter",
+    )
+    def test_chronos_bolt_head_only_point_forecast_contract(self):
+        cfg = {**self.base_cfg, "model_id": "amazon/chronos-bolt-tiny", "context_length": 8}
+        model = build_model("chronos_bolt_head_only", cfg)
+        self.assertEqual(model.output_kind, "point_forecast")
+
+        raw = model(self.dummy_input)
+        self.assertEqual(raw.shape, (self.b, 1))
+
+        score = model.to_score(raw)
+        self.assertEqual(score.shape, (self.b,))
+
+        batch = {"y": torch.randn(self.b, 1)}
+        loss = model.compute_loss(raw, batch)
+        self.assertEqual(loss.dim(), 0)
+        loss.backward()
+
+        # only the trainable head has grads; the frozen backbone is not even a submodule
+        head_grads = [p.grad is not None for p in model.head.parameters()]
+        self.assertTrue(all(head_grads))
+        self.assertEqual(sum(p.numel() for p in model.parameters()),
+                         sum(p.numel() for p in model.head.parameters()))
+
+    @unittest.skipUnless(
+        is_model_available("moment_head_only"),
+        "momentfm backend not installed in this interpreter",
+    )
+    def test_moment_head_only_binary_prob_contract(self):
+        cfg = {**self.base_cfg, "model_id": "AutonLab/MOMENT-1-small"}
+        model = build_model("moment_head_only", cfg)
+        self.assertEqual(model.output_kind, "binary_prob")
+
+        raw = model(self.dummy_input)
+        self.assertEqual(raw.shape, (self.b, 1))
+
+        score = model.to_score(raw)
+        self.assertEqual(score.shape, (self.b,))
+        self.assertTrue(torch.all((score >= 0.0) & (score <= 1.0)))
+
+        batch = {"y": torch.randint(0, 2, (self.b, 1)).float()}
+        loss = model.compute_loss(raw, batch)
+        self.assertEqual(loss.dim(), 0)
+        loss.backward()
+
+        # frozen MOMENT is not a submodule -> only the head is trainable
+        self.assertTrue(all(p.grad is not None for p in model.head.parameters()))
+        self.assertEqual(sum(p.numel() for p in model.parameters()),
+                         sum(p.numel() for p in model.head.parameters()))
+
     def test_pretrained_backbone_is_an_unregistered_interface(self):
         # Extension point for future foundation-model wrappers (e.g. Chronos2): not a
         # runnable model until a subclass loads real weights and registers itself.

@@ -1,0 +1,36 @@
+# ======================================================================================
+# Per-environment sweep spec — MOMENT head-only (needs the `momentfm` backend).
+#
+# Run this from a Python 3.9-3.11 interpreter that has `momentfm`:
+#   pip install -e ".[moment]"
+#   python scripts/sweep.py -s experiments/sweep.moment.yaml --launcher local --max-parallel 1
+#
+# One sweep spec per environment (see EXPERIMENTS.md section 5): this one lists only
+# models runnable where `momentfm` is installed.
+# ======================================================================================
+
+base_config: experiments/experiment.yaml
+entry: train
+
+common_overrides:
+  - experiment.name=sweep_moment_head_only_v1
+  - wandb.group=sweep_moment_head_only_v1
+
+variants:
+  - name: moment_small
+    overrides:
+      - model.name=moment_head_only
+      - "model.config={model_id: AutonLab/MOMENT-1-small, task: classification}"
+  - name: moment_base
+    overrides:
+      - model.name=moment_head_only
+      - "model.config={model_id: AutonLab/MOMENT-1-base, task: classification}"
+
+grid:
+  train.lr: [0.001, 0.0005]
+  experiment.seed: [42, 123]
+# => 2 variants x 2 lr x 2 seed = 8 jobs
+
+slurm:
+  extra_sbatch: []
+  # env_script: "${ROOT_BASE}/load_exp_env_moment.sh"   # activate the momentfm env
