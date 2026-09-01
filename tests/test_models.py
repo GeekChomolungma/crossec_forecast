@@ -7,6 +7,9 @@ from crossec_forecast.models import (
     build_model,
     list_registered_models,
     is_model_registered,
+    is_model_available,
+    list_available_models,
+    ModelDependencyError,
 )
 
 
@@ -68,6 +71,23 @@ class TestModelPluginSystem(unittest.TestCase):
         custom_model = build_model("custom_dummy_net", self.base_cfg)
         out = custom_model(self.dummy_input)
         self.assertEqual(out.shape, (self.b, 1))
+
+    def test_missing_backend_model_registers_but_does_not_build(self):
+        # A wrapper whose backend library lives in another venv must still register
+        # (so configs can name it) but must not be buildable here.
+        @register_model("needs_absent_lib")
+        class NeedsAbsentLib(BaseClassifierModel):
+            REQUIRED_MODULES = ("totally_absent_pkg_xyz",)
+
+            def forward(self, x, **kwargs):
+                return x.new_zeros((x.size(0), 1))
+
+        self.assertIn("needs_absent_lib", list_registered_models())
+        self.assertFalse(is_model_available("needs_absent_lib"))
+        self.assertNotIn("needs_absent_lib", list_available_models())
+        self.assertIn("mlp", list_available_models())  # pure-python stays available
+        with self.assertRaises(ModelDependencyError):
+            build_model("needs_absent_lib", self.base_cfg)
 
     def test_pretrained_backbone_is_an_unregistered_interface(self):
         # Extension point for future foundation-model wrappers (e.g. Chronos2): not a

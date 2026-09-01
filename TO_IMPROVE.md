@@ -25,6 +25,13 @@ full analysis live in [`crossec_forecast/models/pretrained_research.md`](crossec
   raises instead of silently producing an empty dataset.
 - **Invariant:** val mean Rank IC stays the sole early-stop / checkpoint / benchmark-sort
   criterion for every `output_kind`.
+- **Per-interpreter backend isolation.** `models/_optional.py` (`require_modules`,
+  `ModelDependencyError`, `module_available`); `BaseClassifierModel.REQUIRED_MODULES` +
+  `PYTHON_HINT`; registry `is_model_available` / `list_available_models` + `build_model`
+  guard; `BenchmarkEngine` scans the roster and skips unavailable entries with a warning;
+  `pyproject` extras `[chronos]` / `[moment]`. Wrappers keep heavy imports inside
+  `__init__`; models are classified by Python version, not env name. See
+  `pretrained_research.md` §1.
 
 ---
 
@@ -81,7 +88,7 @@ targets (`fwd_logret_3` / `_6`) need a configurable return column. Tie this to C
 ## C8 — model-supplied optimizer construction order
 
 If a model gains `configure_optimizers(cfg) -> Optimizer | None` (for LoRA param groups /
-discriminative LR — see `pretrained_research.md` §6), `Trainer.__init__` must resolve the
+discriminative LR — see `pretrained_research.md` §7), `Trainer.__init__` must resolve the
 optimizer (model hook else default AdamW) **before** building the scheduler, which
 references `self.optimizer`.
 

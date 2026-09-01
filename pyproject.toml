@@ -23,6 +23,22 @@ dependencies = [
 dev = [
     "pytest",
 ]
+# --- TSFM backends -------------------------------------------------------------------
+# These pull mutually-incompatible dependency pins (and Python-version constraints), so
+# they CANNOT share one interpreter. Install each in a separate environment (name it
+# whatever you like) and run the corresponding model plugin from that interpreter:
+#   recommended: a Python 3.11+ env   ->  pip install -e ".[chronos]"
+#   recommended: a Python 3.9-3.11 env ->  pip install -e ".[moment]"
+# (verify the exact supported range from each package's own metadata.)
+# `crossec_forecast` imports fine without either; a plugin whose backend is absent
+# registers but refuses to build (see models/_optional.py), and BenchmarkEngine
+# skips it with a warning so one shared roster runs its available subset per env.
+chronos = [
+    "chronos-forecasting",
+]
+moment = [
+    "momentfm",
+]
 
 [tool.setuptools.packages.find]
 where = ["."]

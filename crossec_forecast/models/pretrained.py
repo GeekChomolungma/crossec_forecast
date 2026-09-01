@@ -13,20 +13,39 @@ with no pretrained weights anywhere — misleading, so it was removed).
 
 To wire in a real pretrained backbone later:
 
+    from ._optional import require_modules
+
     @register_model("chronos2")
     class Chronos2Wrapper(PretrainedBackboneModel):
+        # Backend library — may need a different interpreter than the one you dev in.
+        # The registry / BenchmarkEngine skip this plugin where the lib is absent;
+        # crossec_forecast still imports fine.
+        REQUIRED_MODULES = ("chronos",)
+        PYTHON_HINT = "Python 3.11+"           # version constraint, NOT an env name
+        output_kind = "point_forecast"        # or "binary_prob" for an embedding+head wrapper
+
         def __init__(self, config):
             super().__init__(config)
-            self.backbone = ...  # actually load a checkpoint/hub id here, e.g.
-                                  # from self.pretrained_path, and honor self.freeze_backbone
-            self.head = ...      # small trainable head on top, [*, ...] -> [B, 1]
+            mods = require_modules(            # raises ModelDependencyError if absent
+                "chronos2", self.REQUIRED_MODULES, extra="chronos",
+                python_hint=self.PYTHON_HINT,
+            )
+            chronos = mods["chronos"]
+            self.backbone = ...  # load a checkpoint / hub id from self.pretrained_path,
+                                  # honor self.freeze_backbone
+            self.head = ...      # small trainable head, [*, ...] -> [B, 1]
 
         def forward(self, x, **kwargs):
             ...
 
+        def to_score(self, raw): ...          # raw -> [B] ranking score (higher = bullish)
+        def compute_loss(self, raw, batch): ...# this model's own loss vs its target column
+
 That's it — `build_model()` / the registry / sweep configs all dispatch on the
 registered name generically, so `model.name=chronos2` then works exactly like
-`model.name=lstm` does today, no other wiring required.
+`model.name=lstm` does today, no other wiring required. Heavy imports go inside
+`__init__` (via `require_modules`), never at module top level, so a missing backend
+never breaks `import crossec_forecast`.
 """
 from typing import Dict, Any
 import torch

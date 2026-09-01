@@ -29,6 +29,17 @@ class BaseClassifierModel(nn.Module, ABC):
     # Downstream (metrics gating, artifact schema) branches on this.
     output_kind: str = "binary_prob"
 
+    # Backend packages this plugin needs importable to run (empty == pure-python,
+    # always available). The registry / BenchmarkEngine use this to skip a plugin
+    # whose library is not in the current interpreter (TSFM libs get split across
+    # interpreters by Python-version conflicts); the wrapper's __init__ should still
+    # call models._optional.require_modules(...) for the actionable error + handles.
+    REQUIRED_MODULES: tuple = ()
+    # Free-text Python-version constraint of the backend, surfaced in the "can't build
+    # here" error (e.g. "Python 3.9-3.11"). Never an environment name — envs are the
+    # user's to name; models are classified by the interpreter version they need.
+    PYTHON_HINT: str = ""
+
     def __init__(self, config: Dict[str, Any]):
         super().__init__()
         self.config = config

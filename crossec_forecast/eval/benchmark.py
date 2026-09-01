@@ -4,7 +4,8 @@ import json
 import pandas as pd
 import torch
 
-from ..models.registry import build_model
+from ..models.registry import build_model, is_model_available
+from ..models._optional import ModelDependencyError
 from ..configs.default_config import TrainConfig, BenchmarkConfig
 from .backtest import SimpleLongShortBacktester
 from ..utils.logger import setup_logger
@@ -52,10 +53,22 @@ class BenchmarkEngine:
         self.logger.info("=" * 65)
 
         results = []
+        skipped = []
 
         for m_item in self.models_config:
             model_name = m_item["name"]
             user_m_cfg = m_item.get("config", {})
+
+            # A plugin whose backend library is not importable in this interpreter
+            # (e.g. a TSFM whose lib lives in another venv) is skipped, not fatal —
+            # run that model from the matching venv. Curate the roster per env, or
+            # just let the roster be shared and each env runs the subset it can.
+            if not is_model_available(model_name):
+                self.logger.warning(
+                    f"[skip] '{model_name}' backend not importable in this environment — skipping."
+                )
+                skipped.append(model_name)
+                continue
 
             # Automatically inject feature_dim and seq_len
             full_model_cfg = {
@@ -69,7 +82,12 @@ class BenchmarkEngine:
             seed_everything(self.seed)
 
             # Build model
-            model = build_model(model_name, full_model_cfg)
+            try:
+                model = build_model(model_name, full_model_cfg)
+            except ModelDependencyError as exc:
+                self.logger.warning(f"[skip] '{model_name}': {exc}")
+                skipped.append(model_name)
+                continue
 
             # Train
             trainer = Trainer(
@@ -103,9 +121,17 @@ class BenchmarkEngine:
             }
             results.append(row)
 
+        if skipped:
+            self.logger.warning(
+                f"Skipped {len(skipped)} model(s) with unavailable backends in this env: {skipped}"
+            )
+        if not results:
+            self.logger.warning("No models ran — every roster entry was skipped or failed.")
+
         res_df = pd.DataFrame(results)
         # Sort by Test Rank IC descending
-        res_df = res_df.sort_values(by="test_rank_ic", ascending=False).reset_index(drop=True)
+        if not res_df.empty:
+            res_df = res_df.sort_values(by="test_rank_ic", ascending=False).reset_index(drop=True)
 
         # Export reports
         export_path = Path(self.benchmark_config.export_dir)

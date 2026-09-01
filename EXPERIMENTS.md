@@ -330,3 +330,11 @@ print(result["summary"], result["checkpoint"])
 - **推理输出为 CSV**：不额外依赖 parquet 引擎；需要 parquet 自行在 `run_infer` 结果上转。
 - **SLURM 路径**：`.sbatch` 在“执行 `sweep.py` 的机器”上渲染，路径风格随该 OS；在 Linux 集群上生成即为 POSIX 路径。
 - **产物默认 gitignore**：`runs/`、`wandb/`、`*.pt`、`benchmark_reports/` 均已忽略。
+- **TSFM 后端按 Python 版本分环境**：部分库依赖冲突不能共存（如 `chronos-forecasting` 要较新 Python，
+  `momentfm` 的旧 `transformers` pin 要 Python ≤3.11）。按**推荐 Python 版本**分别建环境（环境名自定）：
+  Python 3.11+ 装 `.[chronos]`，Python 3.9–3.11 装 `.[moment]`。wrapper 用
+  `models._optional.require_modules` 惰性 import + `REQUIRED_MODULES` / `PYTHON_HINT` 声明；后端缺失的
+  模型仍会注册但 `build_model` 报 `ModelDependencyError`，`BenchmarkEngine` 扫描整份名单、自动跳过
+  当前环境跑不了的并告警。共用一份 `benchmark.models` 名单，各环境跑各自能跑的子集，跑完 concat 各份
+  `benchmark_summary.csv` 再按 `test_rank_ic` 排序即可。详见
+  [`crossec_forecast/models/pretrained_research.md`](./crossec_forecast/models/pretrained_research.md) §1。
