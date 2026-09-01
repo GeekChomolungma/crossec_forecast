@@ -39,6 +39,21 @@ class TestModelPluginSystem(unittest.TestCase):
             self.assertEqual(probs.shape, (self.b, 1), f"Model {name} proba shape mismatch")
             self.assertTrue(torch.all((probs >= 0.0) & (probs <= 1.0)))
 
+    def test_all_registered_models_to_score_and_compute_loss(self):
+        for name in ["mlp", "lstm", "dlinear"]:
+            model = build_model(name, self.base_cfg)
+            self.assertEqual(model.output_kind, "binary_prob")
+
+            raw = model(self.dummy_input)
+            score = model.to_score(raw)
+            self.assertEqual(score.shape, (self.b,), f"Model {name} to_score shape mismatch")
+            self.assertTrue(torch.all((score >= 0.0) & (score <= 1.0)))
+
+            batch = {"y": torch.randint(0, 2, (self.b, 1)).float()}
+            loss = model.compute_loss(raw, batch)
+            self.assertEqual(loss.dim(), 0)
+            loss.backward()
+
     def test_custom_plugin_registration(self):
         @register_model("custom_dummy_net")
         class CustomDummyNet(BaseClassifierModel):

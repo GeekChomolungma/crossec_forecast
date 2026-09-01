@@ -82,8 +82,8 @@ schema 与默认值定义在 [`crossec_forecast/configs/experiment_schema.py`](.
 | `experiment` | `name`, `seed` | 逻辑实验名（归组 run 与 wandb run）、全局随机种子 |
 | `run` | `name`, `output_root`, `tags` | run 文件夹名（`null` 时自动 `<时间戳>_<模型>_<hash>`）、产物根目录 |
 | `data` | `path`, `target_col`, `fwd_ret_col`, `timestamp_col`, `symbol_col`, `feature_pattern`, `feature_cols`, `seq_len`, `split.*`, `batch_size`, `shuffle_train`, `num_workers`, `drop_last` | 数据路径、列名、特征列选取（正则或显式白名单）、回看窗口 `L`、时序切分比例与 embargo、DataLoader 参数 |
-| `train` | `epochs`, `lr`, `weight_decay`, `grad_clip_norm`, `early_stopping_patience`, `loss_type`, `focal_*`, `device`, `scheduler_*` | 训练与优化超参；早停以 val mean rank IC 为准 |
-| `model` | `name`, `config` | **单模型**（`train` / `infer` 用）：注册名 + 该模型特异化参数字典 |
+| `train` | `epochs`, `lr`, `weight_decay`, `grad_clip_norm`, `early_stopping_patience`, `min_delta`, `device`, `scheduler_*` | 训练与优化超参；早停以 val mean rank IC 为准。**loss 不在这里**——由模型自己拥有（`model.compute_loss`），`loss_type` / `focal_*` 放进 `model.config` |
+| `model` | `name`, `config` | **单模型**（`train` / `infer` 用）：注册名 + 该模型特异化参数字典（含 `loss_type` / `focal_*`） |
 | `benchmark` | `top_quantile`, `models[]` | **模型清单**（`benchmark` 用）：每项 `{name, config}` |
 | `wandb` | `enabled`, `project`, `entity`, `mode`, `group`, `job_type`, `name`, `notes`, `tags`, `log_freq` | 实验追踪 |
 

@@ -7,7 +7,6 @@ import torch.nn as nn
 import pandas as pd
 import numpy as np
 
-from .losses import get_loss_fn
 from ..configs.default_config import TrainConfig
 from ..models.base import BaseClassifierModel
 from ..eval.metrics import compute_cross_sectional_rank_ic, compute_all_metrics
@@ -26,7 +25,6 @@ class Trainer:
         self,
         model: BaseClassifierModel,
         config: Optional[TrainConfig] = None,
-        loss_fn: Optional[nn.Module] = None,
         optimizer: Optional[torch.optim.Optimizer] = None,
         scheduler: Optional[Any] = None,
         logger=None,
@@ -39,12 +37,7 @@ class Trainer:
         self.device = self._select_device(self.config.device)
         self.model = model.to(self.device)
 
-        # Loss function
-        self.loss_fn = loss_fn or get_loss_fn(
-            loss_type=self.config.loss_type,
-            gamma=self.config.focal_gamma,
-            alpha=self.config.focal_alpha,
-        )
+        # Loss is owned by the model (model.compute_loss) — the Trainer is loss-agnostic.
 
         # Optimizer
         self.optimizer = optimizer or torch.optim.AdamW(
@@ -94,11 +87,10 @@ class Trainer:
 
         for batch in train_loader:
             x = batch["x"].to(self.device)
-            y = batch["y"].to(self.device)
 
             self.optimizer.zero_grad()
-            logits = self.model(x)
-            loss = self.loss_fn(logits, y)
+            raw = self.model(x)
+            loss = self.model.compute_loss(raw, batch)
             loss.backward()
 
             if self.config.grad_clip_norm > 0:
@@ -117,29 +109,28 @@ class Trainer:
         total_loss = 0.0
         num_batches = 0
 
-        all_probs = []
+        all_scores = []
         all_returns = []
         all_dates = []
 
         for batch in val_loader:
             x = batch["x"].to(self.device)
-            y = batch["y"].to(self.device)
 
-            logits = self.model(x)
-            loss = self.loss_fn(logits, y)
+            raw = self.model(x)
+            loss = self.model.compute_loss(raw, batch)
             total_loss += loss.item()
             num_batches += 1
 
-            probs = self.model.predict_proba(x).squeeze(-1).cpu().numpy()
+            scores = self.model.to_score(raw).detach().cpu().numpy().reshape(-1)
             returns = batch["fwd_logret"].squeeze(-1).numpy()
             dates = batch["timestamps"]
 
-            all_probs.extend(probs)
+            all_scores.extend(scores)
             all_returns.extend(returns)
             all_dates.extend(dates)
 
         avg_loss = total_loss / max(1, num_batches)
-        mean_rank_ic, ic_ir, _ = compute_cross_sectional_rank_ic(all_probs, all_returns, all_dates)
+        mean_rank_ic, ic_ir, _ = compute_cross_sectional_rank_ic(all_scores, all_returns, all_dates)
 
         return {
             "val_loss": avg_loss,
@@ -232,7 +223,7 @@ class Trainer:
     def predict(self, loader) -> pd.DataFrame:
         """Generate full predictions DataFrame for testing or live inference."""
         self.model.eval()
-        all_probs = []
+        all_scores = []
         all_targets = []
         all_returns = []
         all_symbols = []
@@ -240,20 +231,23 @@ class Trainer:
 
         for batch in loader:
             x = batch["x"].to(self.device)
-            probs = self.model.predict_proba(x).squeeze(-1).cpu().numpy()
+            raw = self.model(x)
+            scores = self.model.to_score(raw).detach().cpu().numpy().reshape(-1)
             targets = batch["y"].squeeze(-1).numpy()
             returns = batch["fwd_logret"].squeeze(-1).numpy()
 
-            all_probs.extend(probs)
+            all_scores.extend(scores)
             all_targets.extend(targets)
             all_returns.extend(returns)
             all_symbols.extend(batch["symbols"])
             all_dates.extend(batch["timestamps"])
 
+        # Column name kept as `pred_prob` for artifact/back-compat reasons; for
+        # non-"binary_prob" models this holds the raw `to_score` value (see TO_IMPROVE.md C9).
         return pd.DataFrame({
             "timestamp": all_dates,
             "symbol": all_symbols,
-            "pred_prob": all_probs,
+            "pred_prob": all_scores,
             "target": all_targets,
             "fwd_logret_1": all_returns,
         })
@@ -267,6 +261,7 @@ class Trainer:
             returns=preds_df["fwd_logret_1"].values,
             dates=preds_df["timestamp"].values,
             top_quantile=top_quantile,
+            output_kind=getattr(self.model, "output_kind", "binary_prob"),
         )
         return metrics
 

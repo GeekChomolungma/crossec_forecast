@@ -13,6 +13,10 @@ class MLPClassifier(BaseClassifierModel):
     and processes through dense non-linear projection layers.
     """
 
+    # Raw forward() output is logits [B, 1]; inherits BaseClassifierModel.to_score
+    # (sigmoid -> P(beat median)) and .compute_loss (BCE/Focal on batch["y"]).
+    output_kind = "binary_prob"
+
     def __init__(self, config: Dict[str, Any]):
         super().__init__(config)
         hidden_dims: List[int] = config.get("hidden_dims", [64, 32])

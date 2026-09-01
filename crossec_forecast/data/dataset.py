@@ -75,6 +75,21 @@ class PanelTimeSeriesDataset(Dataset):
         # Extract meta arrays
         timestamps_raw = df[timestamp_col].values
         symbols_raw = df[symbol_col].values
+
+        # Target routing: `target_col` is whatever column drives training loss for this
+        # task (binary win label, a raw forward return for a regression/point-forecast
+        # model, a longer-horizon column, ...). `fwd_ret_col` is the realized forward
+        # return used for cross-sectional Rank IC / eval and is required unless inferring.
+        # Both are surfaced on every sample; a model's compute_loss picks whichever it needs.
+        if not is_inference and target_col not in df.columns:
+            raise ValueError(
+                f"target_col '{target_col}' not found in data (columns: {list(df.columns)[:12]}...). "
+                "Set data.target_col to an existing column, or use is_inference=True."
+            )
+        if not is_inference and fwd_ret_col not in df.columns:
+            raise ValueError(
+                f"fwd_ret_col '{fwd_ret_col}' not found in data — it is needed for Rank IC / eval."
+            )
         target_raw = df[target_col].values if target_col in df.columns else np.full(len(df), np.nan)
         fwd_ret_raw = df[fwd_ret_col].values if fwd_ret_col in df.columns else np.full(len(df), np.nan)
 
@@ -99,22 +114,21 @@ class PanelTimeSeriesDataset(Dataset):
                     continue
 
                 curr_y = target_raw[curr_row_idx]
-
-                # If training/evaluating, skip unrevealed target (NaN)
-                if not is_inference and pd.isna(curr_y):
-                    continue
-
                 curr_fwd = fwd_ret_raw[curr_row_idx]
-                if pd.isna(curr_fwd):
-                    curr_fwd = 0.0
+
+                # Training / eval: drop any sample whose target OR forward return is NaN.
+                # Never zero-fill — a fake 0.0 target/return silently corrupts the loss
+                # and Rank IC (this bit the old code for regression / multi-horizon targets).
+                if not is_inference and (pd.isna(curr_y) or pd.isna(curr_fwd)):
+                    continue
 
                 # Window row indices: [t-L+1, ..., t]
                 window_row_indices = idx_array[i - seq_len + 1 : i + 1]
 
                 self.samples.append({
                     "indices": window_row_indices,
-                    "y": float(curr_y) if not pd.isna(curr_y) else 0.0,
-                    "fwd_ret": float(curr_fwd),
+                    "y": float(curr_y) if not pd.isna(curr_y) else float("nan"),
+                    "fwd_ret": float(curr_fwd) if not pd.isna(curr_fwd) else float("nan"),
                     "symbol": str(sym),
                     "timestamp": curr_ts,
                 })

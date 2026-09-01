@@ -68,8 +68,9 @@ train_config = TrainConfig(
     epochs=20,
     lr=1e-3,
     early_stopping_patience=5,
-    loss_type="bce",
 )
+# loss 由模型自己拥有：BaseClassifierModel.compute_loss 从 model config 读
+# loss_type ("bce"|"focal") / focal_gamma / focal_alpha；Trainer 对 loss 无感知。
 
 # 3. 配置待横评的模型清单
 benchmark_config = BenchmarkConfig(

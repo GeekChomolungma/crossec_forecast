@@ -129,9 +129,21 @@ def compute_all_metrics(
     returns: Union[np.ndarray, List[float]],
     dates: Union[np.ndarray, List[Any]],
     top_quantile: float = 0.2,
+    output_kind: str = "binary_prob",
 ) -> Dict[str, float]:
-    """Compute comprehensive quant & machine learning metrics suite."""
-    cls_metrics = compute_classification_metrics(preds, targets)
+    """
+    Compute the quant metrics suite.
+
+    Rank IC / ICIR / top-bottom spread are always computed — they only need a
+    monotone cross-sectional score, so every ``output_kind`` produces them and they
+    are what makes heterogeneous models comparable.
+
+    The classification block (AUC / accuracy / precision / recall / F1) assumes
+    ``preds`` are calibrated probabilities in [0, 1] against a binary ``targets``
+    column, so it is only computed when ``output_kind == "binary_prob"``. For other
+    kinds those keys are simply absent (callers must use ``.get`` — see
+    ``eval/benchmark.py`` and ``TO_IMPROVE.md`` C1).
+    """
     mean_rank_ic, ic_ir, _ = compute_cross_sectional_rank_ic(preds, returns, dates)
     spread, _ = compute_top_bottom_spread(preds, returns, dates, top_quantile=top_quantile)
 
@@ -139,7 +151,8 @@ def compute_all_metrics(
         "mean_rank_ic": mean_rank_ic,
         "ic_ir": ic_ir,
         "top_bottom_spread": spread,
-        **cls_metrics,
     }
+    if output_kind == "binary_prob":
+        metrics.update(compute_classification_metrics(preds, targets))
     return metrics
 

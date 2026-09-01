@@ -66,7 +66,6 @@ def main():
         weight_decay=1e-4,
         grad_clip_norm=1.0,
         early_stopping_patience=5,
-        loss_type="bce",
         device="auto",
         checkpoint_dir="./checkpoints",
     )

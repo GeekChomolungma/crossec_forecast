@@ -84,15 +84,17 @@ class BenchmarkEngine:
             test_metrics = trainer.evaluate(self.test_loader, top_quantile=self.benchmark_config.top_quantile)
             bt_metrics = self.backtester.evaluate(test_preds_df)
 
+            # Classification metrics are only present for output_kind == "binary_prob"
+            # models; use .get so point-forecast / other kinds still produce a row.
             row = {
                 "model": model_name,
                 "best_epoch": fit_res["best_epoch"],
                 "val_rank_ic": fit_res["best_val_rank_ic"],
                 "test_rank_ic": test_metrics["mean_rank_ic"],
                 "test_ic_ir": test_metrics["ic_ir"],
-                "test_auc": test_metrics["auc"],
-                "test_accuracy": test_metrics["accuracy"],
-                "test_f1": test_metrics["f1"],
+                "test_auc": test_metrics.get("auc", float("nan")),
+                "test_accuracy": test_metrics.get("accuracy", float("nan")),
+                "test_f1": test_metrics.get("f1", float("nan")),
                 "top_bottom_spread": test_metrics["top_bottom_spread"],
                 "ann_return": bt_metrics["annual_return"],
                 "sharpe_ratio": bt_metrics["sharpe_ratio"],

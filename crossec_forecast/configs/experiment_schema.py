@@ -61,9 +61,8 @@ class TrainSchema:
     grad_clip_norm: float = 1.0
     early_stopping_patience: int = 7
     min_delta: float = 1e-3                     # min Rank IC gain over best to reset patience (filters noise)
-    loss_type: str = "bce"                     # "bce" | "focal"
-    focal_gamma: float = 2.0
-    focal_alpha: Optional[float] = None
+    # loss selection moved to model.config (model owns model.compute_loss); keys:
+    # `loss_type` ("bce" | "focal"), `focal_gamma`, `focal_alpha`.
     device: str = "auto"                       # "auto" | "cuda" | "mps" | "cpu"
     scheduler_type: str = "reduce_on_plateau"  # "reduce_on_plateau" | "cosine" | "none"
     scheduler_patience: int = 3

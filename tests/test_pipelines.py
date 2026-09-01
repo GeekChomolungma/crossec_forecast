@@ -35,6 +35,7 @@ class TestExperimentPipelines(unittest.TestCase):
         base = [
             f"data.path={self.data_path.as_posix()}",
             f"run.output_root={(self.tmp / 'runs').as_posix()}",
+            "data.seq_len=6",          # mock panel is short; experiment.yaml default is L=512
             "train.epochs=2",
             "train.device=cpu",
             "wandb.enabled=false",
@@ -46,7 +47,7 @@ class TestExperimentPipelines(unittest.TestCase):
         cfg = load_config(CONFIG, ["model.name=dlinear", "train.lr=0.002"])
         self.assertEqual(cfg.model.name, "dlinear")      # CLI override
         self.assertEqual(cfg.train.lr, 0.002)            # CLI override
-        self.assertEqual(cfg.data.seq_len, 6)            # from yaml
+        self.assertEqual(cfg.data.seq_len, 512)          # from yaml
         self.assertEqual(cfg.experiment.seed, 42)        # from schema default via yaml
 
     def test_config_rejects_unknown_key(self):

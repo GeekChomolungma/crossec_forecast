@@ -41,7 +41,6 @@ class TestTrainerWorkflow(unittest.TestCase):
             epochs=3,
             lr=1e-3,
             early_stopping_patience=2,
-            loss_type="bce",
             device="cpu",
             checkpoint_dir="./test_checkpoints",
         )

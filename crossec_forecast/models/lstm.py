@@ -13,6 +13,10 @@ class LSTMClassifier(BaseClassifierModel):
     with configurable pooling and a classification head.
     """
 
+    # Raw forward() output is logits [B, 1]; inherits BaseClassifierModel.to_score
+    # (sigmoid -> P(beat median)) and .compute_loss (BCE/Focal on batch["y"]).
+    output_kind = "binary_prob"
+
     def __init__(self, config: Dict[str, Any]):
         super().__init__(config)
         hidden_dim: int = int(config.get("hidden_dim", 64))

@@ -31,9 +31,9 @@ class TrainConfig:
     grad_clip_norm: float = 1.0
     early_stopping_patience: int = 7
     min_delta: float = 1e-3              # min Rank IC gain over best to reset patience (filters noise)
-    loss_type: str = "bce"               # "bce" or "focal"
-    focal_gamma: float = 2.0
-    focal_alpha: Optional[float] = None
+    # NOTE: loss selection now lives in the model config (model.compute_loss reads
+    # `loss_type` / `focal_gamma` / `focal_alpha` from its own config dict), so the
+    # Trainer is loss-agnostic. See models/base.py.
     device: str = "auto"                 # "auto", "cuda", "mps", "cpu"
     checkpoint_dir: str = "./checkpoints"
     scheduler_type: str = "reduce_on_plateau"  # "reduce_on_plateau", "cosine", "none"

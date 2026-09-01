@@ -35,6 +35,10 @@ class DLinearClassifier(BaseClassifierModel):
     and applies linear temporal mappings for classification / directional scoring.
     """
 
+    # Raw forward() output is logits [B, 1]; inherits BaseClassifierModel.to_score
+    # (sigmoid -> P(beat median)) and .compute_loss (BCE/Focal on batch["y"]).
+    output_kind = "binary_prob"
+
     def __init__(self, config: Dict[str, Any]):
         super().__init__(config)
         kernel_size = int(config.get("kernel_size", 3))

@@ -74,9 +74,12 @@ def run_infer(
     with torch.no_grad():
         for batch in loader:
             x = batch["x"].to(device)
-            probs = model.predict_proba(x).squeeze(-1).cpu().numpy()
+            raw = model(x)
+            # `pred_prob` column name kept for back-compat; holds to_score() output
+            # (a probability for binary_prob models, a raw score otherwise). See TO_IMPROVE.md C9.
+            scores = model.to_score(raw).detach().cpu().numpy().reshape(-1)
             fwd = batch["fwd_logret"].squeeze(-1).numpy()
-            for sym, ts, p, r in zip(batch["symbols"], batch["timestamps"], probs, fwd):
+            for sym, ts, p, r in zip(batch["symbols"], batch["timestamps"], scores, fwd):
                 records.append(
                     {"timestamp": ts, "symbol": sym, "pred_prob": float(p), "fwd_logret_1": float(r)}
                 )
