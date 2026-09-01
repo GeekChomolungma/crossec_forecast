@@ -114,7 +114,10 @@ class ChronosBoltHeadOnly(PretrainedBackboneModel):
                 ctx[i:i + self.series_chunk], prediction_length=self.pred_length
             )
             means.append(mean[:, 0])  # first forecast step
-        return torch.cat(means, dim=0).reshape(b, d).to(dtype)
+        # `predict_quantiles` returns CPU tensors regardless of the input device, so the
+        # concatenated result must be moved back to `dev` explicitly (not just cast dtype)
+        # before it reaches `self.head`, which lives on `dev`.
+        return torch.cat(means, dim=0).reshape(b, d).to(device=dev, dtype=dtype)
 
     def forward(self, x: torch.Tensor, **kwargs) -> torch.Tensor:
         feats = self._channel_forecasts(x)   # [B, D], detached (frozen backbone)
