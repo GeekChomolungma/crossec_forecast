@@ -14,18 +14,17 @@
 # Unlike train.sbatch.tmpl this is NOT rendered by sweep.py — submit it directly:
 #
 #     cd <repo on the cluster>
-#     sbatch scripts/slurm/benchmark.sbatch                 # default env (load_exp_env.sh)
-#     ENV=311 sbatch scripts/slurm/benchmark.sbatch         # Python 3.11 env (chronos)
+#     sbatch scripts/slurm/benchmark.sbatch
 #
-# Every knob is an env var with a default; override at submit time, e.g.
+# Interpreter: edit the `source` line below to the activation script you want (that is
+# the whole mechanism — one hardcoded path, change it by hand per env).
+#
+# Optional submit-time knobs (env vars):
 #
 #     CONFIG=experiments/experiment.yaml \
 #     OVERRIDES="benchmark.top_quantile=0.1 wandb.job_type=benchmark" \
 #     sbatch scripts/slurm/benchmark.sbatch
 #
-#   ENV          suffix picking ${ROOT_BASE}/load_exp_env_<ENV>.sh  (e.g. 311, moment)
-#                empty -> ${ROOT_BASE}/load_exp_env.sh
-#   ENV_SCRIPT   absolute path to an activation script; overrides ENV entirely
 #   CONFIG       base experiment YAML                  (default experiments/experiment.yaml)
 #   CONFIG_EXTRA extra "-c" fragments, space-sep       (default none)
 #   OVERRIDES    trailing KEY=VALUE dot-list           (default none)
@@ -34,8 +33,8 @@
 #
 # The shared roster in experiment.yaml already skips any model whose backend is absent
 # in the activated interpreter (is_model_available), so one submission per env covers
-# that env's runnable subset. To benchmark a different env's models, submit again with a
-# different ENV / ENV_SCRIPT; concat the per-env benchmark_summary.csv afterwards.
+# that env's runnable subset. To benchmark a different env's models, edit the `source`
+# line and submit again; concat the per-env benchmark_summary.csv afterwards.
 #
 # GPU: partition is gpu_a100 (was gpu_h100). For H100 add `-p gpu_h100` at submit
 # (`sbatch -p gpu_h100 ...`) and bump data.batch_size back up via OVERRIDES. Adjust the
@@ -67,25 +66,11 @@ PROJECT_DIR="${PROJECT_DIR:-${SLURM_SUBMIT_DIR:-$PWD}}"
 LOG_DIR="${LOG_DIR:-${ROOT_BASE}/users/${USER}/slurm/logs}"
 mkdir -p "${LOG_DIR}"
 
-# --- interpreter env: resolve the activation script -----------------------------------
-#   ENV_SCRIPT=/abs/path.sh   -> used verbatim
-#   ENV=<suffix>              -> ${ROOT_BASE}/load_exp_env_<suffix>.sh   (e.g. 311, moment)
-#   neither set               -> ${ROOT_BASE}/load_exp_env.sh
-ENV="${ENV:-}"
-if [[ -z "${ENV_SCRIPT:-}" ]]; then
-  if [[ -n "${ENV}" ]]; then
-    ENV_SCRIPT="${ROOT_BASE}/load_exp_env_${ENV}.sh"
-  else
-    ENV_SCRIPT="${ROOT_BASE}/load_exp_env.sh"
-  fi
-fi
-if [[ ! -f "${ENV_SCRIPT}" ]]; then
-  echo "[cf-benchmark] activation script not found: ${ENV_SCRIPT}" >&2
-  echo "[cf-benchmark] set ENV=<suffix> or ENV_SCRIPT=<abs path>. Available:" >&2
-  ls -1 "${ROOT_BASE}"/load_exp_env*.sh 2>/dev/null >&2 || echo "  (none under ${ROOT_BASE})" >&2
-  exit 1
-fi
-source "${ENV_SCRIPT}"
+# --- interpreter env -----------------------------------------------------------------
+# EDIT THIS LINE to the activation script for the interpreter you want, e.g.
+#   ${ROOT_BASE}/load_exp_env.sh        # default env (momentfm, Python <= 3.11)
+#   ${ROOT_BASE}/load_exp_env_311.sh    # Python 3.11 env (chronos)
+source "${ROOT_BASE}/load_exp_env.sh"
 
 which python
 python -c "import torch; print('torch ok', torch.__version__, '| cuda', torch.cuda.is_available())"
@@ -102,6 +87,5 @@ for f in ${CONFIG_EXTRA}; do CMD+=(-c "${f}"); done
 CMD+=(${OVERRIDES})
 
 echo "[cf-benchmark] PROJECT_DIR=${PROJECT_DIR}"
-echo "[cf-benchmark] ENV_SCRIPT=${ENV_SCRIPT}"
 echo "[cf-benchmark] ${CMD[*]}"
 "${CMD[@]}"
