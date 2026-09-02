@@ -35,6 +35,7 @@ _log = logging.getLogger(__name__)
 _OPTIONAL_WRAPPER_MODULES: tuple = (
     "chronos_bolt_head_only",
     "moment_head_only",
+    "moment_zeroshot",
 )
 
 for _modname in _OPTIONAL_WRAPPER_MODULES:

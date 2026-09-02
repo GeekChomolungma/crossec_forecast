@@ -25,8 +25,10 @@ class BaseClassifierModel(nn.Module, ABC):
     A future pretrained / forecasting backbone overrides ``output_kind`` and both hooks.
     """
 
-    # "binary_prob" | "point_forecast" | "quantile" | "embedding" | ...
-    # Downstream (metrics gating, artifact schema) branches on this.
+    # "binary_prob" | "point_forecast" | "quantile" | "embedding" | "anomaly_score" | ...
+    # Downstream (metrics gating, artifact schema) branches on this. Only
+    # "binary_prob" unlocks the AUC / accuracy / F1 block; every other kind is scored
+    # on Rank IC / ICIR / long-short spread alone.
     output_kind: str = "binary_prob"
 
     # Backend packages this plugin needs importable to run (empty == pure-python,

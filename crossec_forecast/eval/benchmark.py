@@ -106,6 +106,10 @@ class BenchmarkEngine:
             # models; use .get so point-forecast / other kinds still produce a row.
             row = {
                 "model": model_name,
+                # zero-shot / parameter-free models take the Trainer eval-only path
+                # (scored once on val, no training loop) — flag them so the table makes
+                # the paradigm difference obvious next to the trained rows.
+                "zero_shot": bool(getattr(model, "zero_shot", False)),
                 "best_epoch": fit_res["best_epoch"],
                 "val_rank_ic": fit_res["best_val_rank_ic"],
                 "test_rank_ic": test_metrics["mean_rank_ic"],

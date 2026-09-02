@@ -65,15 +65,24 @@ model:
     loss_type: bce               # bce | focal  (focal also reads focal_gamma / focal_alpha)
 
 # ---- model roster (scripts/benchmark.py) --------------------------------------------
+# start with 
+#            python scripts/benchmark.py -c experiments/experiment.yaml
 benchmark:
   top_quantile: 0.20
   models:
-    - {name: mlp,     config: {hidden_dims: [64, 32], dropout: 0.2, use_norm: true}}
-    - {name: lstm,    config: {hidden_dim: 48, num_layers: 2, dropout: 0.2, pooling: last}}
-    - {name: dlinear, config: {kernel_size: 3, individual: false}}
-    # Pretrained/foundation-model backbones (e.g. Chronos2) plug in here once wired up
-    # as a crossec_forecast.models.PretrainedBackboneModel subclass — add a row with
-    # its registered `model.name` and config, same as the from-scratch models above.
+    # - {name: mlp,            config: {hidden_dims: [64, 32], dropout: 0.2, use_norm: true}}
+    # - {name: lstm,           config: {hidden_dim: 48, num_layers: 2, dropout: 0.2, pooling: last}}
+    # - {name: dlinear,        config: {kernel_size: 3, individual: false}}
+    # Pretrained backbones. A row whose backend library is absent in the running
+    # interpreter is skipped with a warning (is_model_available), so this one roster is
+    # safe to share across environments — each runs the subset it can. zero-shot rows
+    # (moment_zeroshot) take the Trainer eval-only path automatically: no training, just
+    # scored on val / test Rank IC next to the trained models.
+    - {name: moment_zeroshot,  config: {model_id: AutonLab/MOMENT-1-small, anomaly_criterion: mse, sign: 1.0}}
+    # - {name: moment_head_only, config: {model_id: AutonLab/MOMENT-1-small, task: classification}}
+    # chronos_bolt_head_only needs data.target_col=fwd_logret_1 (regression target), which
+    # is a whole-run data override — keep it in its own benchmark config, not this shared
+    # roster. See experiments/models/chronos_bolt_head_only.yaml.
 
 # ---- experiment tracking ------------------------------------------------------------
 wandb:

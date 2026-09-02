@@ -141,6 +141,32 @@ class TestModelPluginSystem(unittest.TestCase):
         self.assertEqual(sum(p.numel() for p in model.parameters()),
                          sum(p.numel() for p in model.head.parameters()))
 
+    @unittest.skipUnless(
+        is_model_available("moment_zeroshot"),
+        "momentfm backend not installed in this interpreter",
+    )
+    def test_moment_zeroshot_anomaly_factor_contract(self):
+        model = build_model("moment_zeroshot", {**self.base_cfg, "model_id": "AutonLab/MOMENT-1-small"})
+        self.assertEqual(model.output_kind, "anomaly_score")
+        self.assertTrue(model.zero_shot)
+        # no trainable parameters -> Trainer runs it eval-only
+        self.assertEqual(model.trainable_parameters(), [])
+
+        raw = model(self.dummy_input)
+        self.assertEqual(raw.shape, (self.b, 1))
+        self.assertTrue(torch.isfinite(raw).all())
+        self.assertTrue(torch.all(raw >= 0.0))  # squared / abs reconstruction error
+
+        score = model.to_score(raw)
+        self.assertEqual(score.shape, (self.b,))
+        self.assertTrue(torch.allclose(score, raw.reshape(self.b)))  # sign=+1 default
+
+        loss = model.compute_loss(raw, {"y": torch.zeros(self.b, 1)})
+        self.assertEqual(loss.dim(), 0)
+
+        # state_dict carries only the device-anchor buffer, not MOMENT's frozen weights
+        self.assertEqual(list(model.state_dict().keys()), ["_dev_anchor"])
+
     def test_pretrained_backbone_is_an_unregistered_interface(self):
         # Extension point for future foundation-model wrappers (e.g. Chronos2): not a
         # runnable model until a subclass loads real weights and registers itself.

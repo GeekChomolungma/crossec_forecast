@@ -1,0 +1,18 @@
+# MOMENT zero-shot fragment — Pattern A (representation) x NO training.
+#
+# Frozen pretrained MOMENT, scored by masked-reconstruction error and used directly as a
+# cross-sectional factor: no head, no fine-tuning. The Trainer runs it eval-only — one
+# pass over val to record Rank IC — then the usual OOS test + long-short backtest.
+#
+# Needs the `momentfm` backend (Python 3.9-3.11):  pip install -e ".[moment]"
+#   python scripts/train.py -c experiments/experiment.yaml -c experiments/models/moment_zeroshot.yaml
+#
+# Nothing under `data:` is overridden: target_col stays logret1_win (the loss is never
+# used here — model is eval-only — but the dataset still needs a valid target column;
+# fwd_logret_1 drives Rank IC as always). Only the `model:` block changes.
+model:
+  name: moment_zeroshot
+  config:
+    model_id: AutonLab/MOMENT-1-small   # small | base | large
+    anomaly_criterion: mse              # mse | mae
+    sign: 1.0                           # flip to -1.0 if the val Rank IC comes out negative
