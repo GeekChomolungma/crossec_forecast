@@ -40,6 +40,15 @@ class BaseClassifierModel(nn.Module, ABC):
     # user's to name; models are classified by the interpreter version they need.
     PYTHON_HINT: str = ""
 
+    # Set True by a wrapper with NO trainable parameters — a pure zero-shot baseline:
+    # run the pretrained backbone as-is, map its output to a score, and compare it on
+    # val / test Rank IC next to the trained models. The Trainer then skips the
+    # optimizer, scheduler and training loop and scores the model once (see
+    # ``Trainer._fit_eval_only``). A model that exposes no ``requires_grad`` parameters
+    # is treated the same way even without setting this flag; the flag also lets a
+    # wrapper that *does* carry a (frozen) head opt into the same eval-only path.
+    zero_shot: bool = False
+
     def __init__(self, config: Dict[str, Any]):
         super().__init__()
         self.config = config
@@ -47,6 +56,18 @@ class BaseClassifierModel(nn.Module, ABC):
         self.feature_dim = int(config.get("feature_dim", 24))
         self.num_classes = int(config.get("num_classes", 1))
         self._loss_fn = None  # lazily built by the default compute_loss
+
+    def trainable_parameters(self):
+        """
+        Parameters the Trainer should hand to the optimizer. Default: every parameter
+        with ``requires_grad=True``.
+
+        Frozen-backbone wrappers already keep the backbone out of ``parameters()`` (a
+        non-submodule attribute), so this returns just the head. A pure zero-shot model
+        returns ``[]`` and the Trainer runs it eval-only. A future LoRA wrapper can
+        override this to return only its adapter + head tensors.
+        """
+        return [p for p in self.parameters() if p.requires_grad]
 
     @abstractmethod
     def forward(self, x: torch.Tensor, **kwargs) -> torch.Tensor:

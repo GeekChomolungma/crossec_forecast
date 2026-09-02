@@ -41,31 +41,48 @@ class Trainer:
 
         # Loss is owned by the model (model.compute_loss) — the Trainer is loss-agnostic.
 
-        # Optimizer
-        self.optimizer = optimizer or torch.optim.AdamW(
-            self.model.parameters(),
-            lr=self.config.lr,
-            weight_decay=self.config.weight_decay,
+        # Eval-only detection: a model that declares ``zero_shot`` or simply exposes no
+        # trainable parameters has nothing to optimize — the Trainer skips the optimizer,
+        # scheduler and training loop and scores it once in ``fit`` (see _fit_eval_only).
+        # An explicitly supplied ``optimizer`` always opts back into the training path.
+        if hasattr(self.model, "trainable_parameters"):
+            trainable = list(self.model.trainable_parameters())
+        else:
+            trainable = [p for p in self.model.parameters() if p.requires_grad]
+        self.eval_only = optimizer is None and (
+            getattr(self.model, "zero_shot", False) or len(trainable) == 0
         )
 
-        # Scheduler
-        if scheduler is not None:
-            self.scheduler = scheduler
-        elif self.config.scheduler_type == "reduce_on_plateau":
-            self.scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-                self.optimizer,
-                mode="max",
-                patience=self.config.scheduler_patience, # 连续几轮不创新高就降LR
-                factor=self.config.scheduler_factor,
-            )
-        elif self.config.scheduler_type == "cosine":
-            self.scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-                self.optimizer,
-                T_max=self.config.epochs,
-                eta_min=1e-6,
+        # Optimizer + scheduler. Both stay ``None`` on the eval-only path — nothing to
+        # step — and ``fit`` short-circuits to ``_fit_eval_only`` before either is used.
+        self.optimizer: Optional[torch.optim.Optimizer] = None
+        self.scheduler: Optional[Any] = None
+        if self.eval_only:
+            self.logger.info(
+                "Trainer: model has no trainable parameters (zero-shot) — running "
+                "eval-only: no optimizer/scheduler, fit() scores the val set once."
             )
         else:
-            self.scheduler = None
+            self.optimizer = optimizer or torch.optim.AdamW(
+                self.model.parameters(),
+                lr=self.config.lr,
+                weight_decay=self.config.weight_decay,
+            )
+            if scheduler is not None:
+                self.scheduler = scheduler
+            elif self.config.scheduler_type == "reduce_on_plateau":
+                self.scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+                    self.optimizer,
+                    mode="max",
+                    patience=self.config.scheduler_patience, # 连续几轮不创新高就降LR
+                    factor=self.config.scheduler_factor,
+                )
+            elif self.config.scheduler_type == "cosine":
+                self.scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+                    self.optimizer,
+                    T_max=self.config.epochs,
+                    eta_min=1e-6,
+                )
 
         # Checkpoints
         self.checkpoint_dir = Path(self.config.checkpoint_dir)
@@ -83,6 +100,10 @@ class Trainer:
 
     def train_epoch(self, train_loader, epoch: Optional[int] = None) -> float:
         """Stage 1: Gradient Backpropagation and Feature Space Shaping."""
+        assert self.optimizer is not None, (
+            "train_epoch() called on an eval-only Trainer (model has no trainable "
+            "parameters). Zero-shot models are scored via fit() / validate() only."
+        )
         self.model.train()
         total_loss = 0.0
         num_batches = 0
@@ -154,6 +175,11 @@ class Trainer:
         history = []
 
         start_time = time.time()
+
+        if self.eval_only:
+            return self._fit_eval_only(val_loader, start_time)
+        assert self.optimizer is not None  # not eval_only -> built in __init__
+
         self.logger.info(f"Starting training on device: {self.device}")
 
         for epoch in range(1, self.config.epochs + 1):
@@ -224,6 +250,48 @@ class Trainer:
             "history": history,
             "best_epoch": best_epoch,
             "best_val_rank_ic": best_val_ic,
+            "train_time_sec": elapsed_time,
+        }
+
+    def _fit_eval_only(self, val_loader, start_time: float) -> Dict[str, Any]:
+        """
+        Zero-shot lifecycle: no training. Score the validation set once so the run still
+        yields a val mean Rank IC — the universal selection / benchmark-sort metric — and
+        a single-row history, fire the epoch callbacks once, and persist the model
+        unchanged as the "best" checkpoint so the downstream test / infer path is
+        identical to a trained run. Test-set evaluation stays in ``evaluate`` (untouched).
+        """
+        self.logger.info(f"Zero-shot eval-only run on device: {self.device} (no training loop)")
+        val_metrics = self.validate(val_loader, epoch=None)
+        val_ic = val_metrics["val_mean_rank_ic"]
+
+        epoch_log = {
+            "epoch": 0,
+            "train_loss": float("nan"),
+            "val_loss": val_metrics["val_loss"],
+            "val_mean_rank_ic": val_ic,
+            "val_ic_ir": val_metrics["val_ic_ir"],
+            "lr": 0.0,
+            "is_best": True,
+        }
+        for cb in self.callbacks:
+            try:
+                cb(epoch_log)
+            except Exception as exc:  # noqa: BLE001
+                self.logger.warning(f"Epoch callback {cb!r} failed: {exc}")
+
+        # state_dict is head-only (usually empty for a pure zero-shot wrapper); saving it
+        # keeps run_train / BenchmarkEngine / run_infer working without a special case.
+        torch.save(self.model.state_dict(), self.best_checkpoint_path)
+        elapsed_time = time.time() - start_time
+        self.logger.info(
+            f"Zero-shot eval | Val Rank IC: {val_ic:.4f} | ICIR: {val_metrics['val_ic_ir']:.2f} | "
+            f"Val Loss: {val_metrics['val_loss']:.4f} | saved -> {self.best_checkpoint_path}"
+        )
+        return {
+            "history": [epoch_log],
+            "best_epoch": 0,
+            "best_val_rank_ic": val_ic,
             "train_time_sec": elapsed_time,
         }
 
