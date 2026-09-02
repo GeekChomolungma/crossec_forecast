@@ -1,6 +1,7 @@
 from pathlib import Path
 from typing import List, Dict, Any, Optional
 import json
+import os
 import pandas as pd
 import torch
 
@@ -46,6 +47,12 @@ class BenchmarkEngine:
         """Run benchmark across all configured models."""
         from ..engine.trainer import Trainer
 
+        # OOS test switch. DEFAULT = validation only: the (slower) test predict + evaluate
+        # + backtest per model is skipped and the summary carries only val_rank_ic (test /
+        # backtest columns NaN), sorted by it. Set CF_BENCH_RUN_TEST=1 to run the full
+        # OOS test + backtest and get the complete table.
+        run_test = os.getenv("CF_BENCH_RUN_TEST", "").strip().lower() in ("1", "true", "yes", "on")
+
         self.logger.info("=" * 65)
         self.logger.info("Starting Multi-Model Benchmark Evaluation")
         self.logger.info(f"Feature Dim: {self.meta_info['num_features']}, Sequence Length: {self.meta_info['seq_len']}")
@@ -79,6 +86,8 @@ class BenchmarkEngine:
             }
 
             self.logger.info(f"\n>>> Benchmarking Model Plugin: [{model_name.upper()}] <<<")
+            if not run_test:
+                self.logger.info("OOS test skipped (set CF_BENCH_RUN_TEST=1 to enable) — val metrics only.")
             seed_everything(self.seed)
 
             # Build model
@@ -97,13 +106,17 @@ class BenchmarkEngine:
             )
             fit_res = trainer.fit(self.train_loader, self.val_loader)
 
-            # Evaluate on Test (OOS)
-            test_preds_df = trainer.predict(self.test_loader)
-            test_metrics = trainer.evaluate(self.test_loader, top_quantile=self.benchmark_config.top_quantile)
-            bt_metrics = self.backtester.evaluate(test_preds_df)
+            # Evaluate on Test (OOS) — only when CF_BENCH_RUN_TEST is set.
+            if run_test:
+                test_preds_df = trainer.predict(self.test_loader)
+                test_metrics = trainer.evaluate(self.test_loader, top_quantile=self.benchmark_config.top_quantile)
+                bt_metrics = self.backtester.evaluate(test_preds_df)
+            else:
+                test_metrics, bt_metrics = {}, {}
 
             # Classification metrics are only present for output_kind == "binary_prob"
-            # models; use .get so point-forecast / other kinds still produce a row.
+            # models; use .get so point-forecast / other kinds (and val-only runs) still
+            # produce a row.
             row = {
                 "model": model_name,
                 # zero-shot / parameter-free models take the Trainer eval-only path
@@ -112,15 +125,15 @@ class BenchmarkEngine:
                 "zero_shot": bool(getattr(model, "zero_shot", False)),
                 "best_epoch": fit_res["best_epoch"],
                 "val_rank_ic": fit_res["best_val_rank_ic"],
-                "test_rank_ic": test_metrics["mean_rank_ic"],
-                "test_ic_ir": test_metrics["ic_ir"],
+                "test_rank_ic": test_metrics.get("mean_rank_ic", float("nan")),
+                "test_ic_ir": test_metrics.get("ic_ir", float("nan")),
                 "test_auc": test_metrics.get("auc", float("nan")),
                 "test_accuracy": test_metrics.get("accuracy", float("nan")),
                 "test_f1": test_metrics.get("f1", float("nan")),
-                "top_bottom_spread": test_metrics["top_bottom_spread"],
-                "ann_return": bt_metrics["annual_return"],
-                "sharpe_ratio": bt_metrics["sharpe_ratio"],
-                "max_drawdown": bt_metrics["max_drawdown"],
+                "top_bottom_spread": test_metrics.get("top_bottom_spread", float("nan")),
+                "ann_return": bt_metrics.get("annual_return", float("nan")),
+                "sharpe_ratio": bt_metrics.get("sharpe_ratio", float("nan")),
+                "max_drawdown": bt_metrics.get("max_drawdown", float("nan")),
                 "train_time_sec": fit_res["train_time_sec"],
             }
             results.append(row)
@@ -133,9 +146,10 @@ class BenchmarkEngine:
             self.logger.warning("No models ran — every roster entry was skipped or failed.")
 
         res_df = pd.DataFrame(results)
-        # Sort by Test Rank IC descending
+        # Sort by Test Rank IC descending when OOS test ran, else by val Rank IC.
+        sort_key = "test_rank_ic" if run_test else "val_rank_ic"
         if not res_df.empty:
-            res_df = res_df.sort_values(by="test_rank_ic", ascending=False).reset_index(drop=True)
+            res_df = res_df.sort_values(by=sort_key, ascending=False).reset_index(drop=True)
 
         # Export reports
         export_path = Path(self.benchmark_config.export_dir)

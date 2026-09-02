@@ -1,6 +1,9 @@
+import math
+import os
 import unittest
 import shutil
 from pathlib import Path
+from unittest import mock
 from crossec_forecast.configs import DataConfig, TrainConfig, BenchmarkConfig
 from crossec_forecast.data import build_dataloaders
 from crossec_forecast.eval import BenchmarkEngine
@@ -35,7 +38,7 @@ class TestBenchmarkEngine(unittest.TestCase):
         if ckpt_dir.exists():
             shutil.rmtree(ckpt_dir, ignore_errors=True)
 
-    def test_benchmark_run_multi_model(self):
+    def _engine(self):
         train_cfg = TrainConfig(
             epochs=2,
             lr=1e-3,
@@ -49,8 +52,7 @@ class TestBenchmarkEngine(unittest.TestCase):
             ],
             export_dir=str(self.export_dir),
         )
-
-        engine = BenchmarkEngine(
+        return BenchmarkEngine(
             train_loader=self.train_loader,
             val_loader=self.val_loader,
             test_loader=self.test_loader,
@@ -59,17 +61,32 @@ class TestBenchmarkEngine(unittest.TestCase):
             benchmark_config=bench_cfg,
         )
 
-        res_df = engine.run()
+    @mock.patch.dict(os.environ, {"CF_BENCH_RUN_TEST": "1"})
+    def test_benchmark_run_multi_model_with_oos(self):
+        res_df = self._engine().run()
         self.assertEqual(len(res_df), 2)
-        self.assertIn("model", res_df.columns)
-        self.assertIn("val_rank_ic", res_df.columns)
-        self.assertIn("test_rank_ic", res_df.columns)
-        self.assertIn("test_auc", res_df.columns)
+        for col in ("model", "val_rank_ic", "test_rank_ic", "test_auc"):
+            self.assertIn(col, res_df.columns)
+        # OOS test ran -> test / backtest columns are populated
+        self.assertTrue(res_df["test_rank_ic"].notna().all())
+        self.assertTrue(res_df["sharpe_ratio"].notna().all())
 
-        # Check export files
         self.assertTrue((self.export_dir / "benchmark_summary.csv").exists())
         self.assertTrue((self.export_dir / "benchmark_summary.md").exists())
         self.assertTrue((self.export_dir / "benchmark_summary.json").exists())
+
+    @mock.patch.dict(os.environ, {"CF_BENCH_RUN_TEST": ""})
+    def test_benchmark_default_is_validation_only(self):
+        res_df = self._engine().run()
+        self.assertEqual(len(res_df), 2)
+        # same column schema, but the OOS test was skipped -> test / backtest are NaN
+        self.assertIn("test_rank_ic", res_df.columns)
+        self.assertTrue(res_df["test_rank_ic"].isna().all())
+        self.assertTrue(res_df["ann_return"].isna().all())
+        self.assertTrue(res_df["val_rank_ic"].map(math.isfinite).all())
+        # sorted by val_rank_ic descending
+        self.assertTrue(res_df["val_rank_ic"].is_monotonic_decreasing)
+        self.assertTrue((self.export_dir / "benchmark_summary.csv").exists())
 
 
 if __name__ == "__main__":
