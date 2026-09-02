@@ -62,7 +62,8 @@ scripts/
 ├── sweep.py                  # 批量 / 集群调度器
 ├── run_all_models.sh         # 本地顺序跑完全部 baseline
 └── slurm/
-    └── train.sbatch.tmpl     # 唯一的集群作业定义；sweep.py --launcher slurm 逐 job 渲染
+    ├── train.sbatch.tmpl     # sweep.py --launcher slurm 逐 job 渲染的作业模板
+    └── benchmark.sbatch      # 可直接 `sbatch` 提交的一键多模型横评作业（旋钮均为环境变量）
 
 runs/                         # 所有产物（已 gitignore）
 ├── <experiment.name>/<run.name>/   # 每次训练 / 推理 / 横评的实例与结果
