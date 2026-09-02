@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-#SBATCH -p gpu_h100
+#SBATCH -p gpu_a100
 #SBATCH --gpus=1
 #SBATCH --cpus-per-gpu=16
 #SBATCH --mem-per-gpu=64G
@@ -22,6 +22,11 @@
 #
 # Edit THIS file, not the rendered copies. Adjust the -p / -t / --mem-per-gpu / -o / -e
 # header for your account; if you launch from the /gpfs mount fix the /projects prefix.
+#
+# GPU: partition is gpu_a100 (was gpu_h100 — H100 is pricier). To send one sweep back to
+# H100 without editing this file, add `- "-p gpu_h100"` to `slurm.extra_sbatch` in that
+# spec (it renders after the header line, and Slurm honours the last -p). A100-40GB has
+# ~half the VRAM of H100-80GB, so data.batch_size in experiment.yaml was halved to match.
 # =====================================================================================
 
 # --- 固化 HF 缓存路径与离线模式 ---

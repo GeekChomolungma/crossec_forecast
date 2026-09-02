@@ -34,7 +34,9 @@ data:
     val_ratio: 0.15
     test_ratio: 0.15
     embargo_steps: 1         # purged timestamps between splits
-  batch_size: 1024              # sized for H100 80GB+; lower this on smaller GPUs
+  batch_size: 512               # sized for A100 40GB (was 1024 on H100 80GB). Raise to
+                                # 1024 when running on `-p gpu_h100`, drop to 256 if an
+                                # L=512 MOMENT/LSTM row still OOMs.
   shuffle_train: true
   num_workers: 4
   drop_last: false
