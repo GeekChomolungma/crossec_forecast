@@ -33,11 +33,11 @@ variants:
       - model.name=chronos_bolt_head_only
       - data.target_col=fwd_logret_1
       - "model.config={model_id: amazon/chronos-bolt-small, loss_type: huber, head_hidden: 32}"
-  - name: cbolt_base
-    overrides:
-      - model.name=chronos_bolt_head_only
-      - data.target_col=fwd_logret_1
-      - "model.config={model_id: amazon/chronos-bolt-base, loss_type: huber, head_hidden: 32}"
+  # - name: cbolt_base
+  #   overrides:
+  #     - model.name=chronos_bolt_head_only
+  #     - data.target_col=fwd_logret_1
+  #     - "model.config={model_id: amazon/chronos-bolt-base, loss_type: huber, head_hidden: 32}"
 
 grid:
   train.lr: [0.001]
