@@ -34,6 +34,7 @@ _log = logging.getLogger(__name__)
 # could run. Add new TSFM wrappers here by module name.
 _OPTIONAL_WRAPPER_MODULES: tuple = (
     "chronos_bolt_head_only",
+    "chronos_bolt_zeroshot",
     "moment_head_only",
     "moment_zeroshot",
 )

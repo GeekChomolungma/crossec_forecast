@@ -1,0 +1,50 @@
+# Chronos-Bolt zero-shot — Pattern B (native forecast head) x NO training: the frozen
+# backbone's own next-step forecast, read directly as the cross-sectional score. This is
+# Chronos-Bolt used exactly as intended (a single univariate context window in, its own
+# forecast out) — not the per-channel-forecast-then-trainable-head compromise in
+# chronos_bolt_head_only.
+#
+# Needs the `chronos` backend (recent Python):  pip install -e ".[chronos]"
+#   python scripts/train.py -c experiments/experiment.yaml -c experiments/models/chronos_bolt_zeroshot.yaml
+#
+# `data.feature_cols` is pinned to a single return-like column so the [B, L, D] window IS
+# the raw series Chronos-Bolt expects (D=1) — its native recommended usage, not the
+# 24-column feature panel. This is a whole-run `data:` override (like
+# chronos_bolt_head_only.yaml), so it CANNOT share the base experiment.yaml's
+# `benchmark.models` roster (mlp/lstm/dlinear/moment_zeroshot all expect the 24-column
+# panel) — adding a bare `{name: chronos_bolt_zeroshot, config: {...}}` entry there would
+# NOT raise, it would silently feed this model feature_dim=24 instead of 1 (forward()
+# doesn't assume D==1, so it just degrades to the cross-channel "route B" probe instead of
+# the intended native-usage zero-shot). This fragment therefore also pins `benchmark.models`
+# to a roster of exactly itself, so `scripts/benchmark.py -c experiment.yaml -c this file`
+# produces a correctly-scoped one-row report:
+#   python scripts/benchmark.py -c experiments/experiment.yaml -c experiments/models/chronos_bolt_zeroshot.yaml
+# Cross-model comparison = concat this report's benchmark_summary.csv with the others'
+# (same "run per environment, concat + re-sort by test_rank_ic" pattern already used for
+# cross-Python-version TSFM backends — see pretrained_research.md section 2).
+#
+# No `data.target_col` override needed: the model is never trained (zero-shot) and
+# compute_loss compares directly against fwd_logret_1 (batch["fwd_logret"]), not target_col.
+data:
+  feature_cols: [crossec_logret_1_mad_Zscore]
+
+model:
+  name: chronos_bolt_zeroshot
+  config: &chronos_bolt_zeroshot_config
+    model_id: amazon/chronos-bolt-small   # tiny | mini | small | base
+    context_length: null                  # null = full data.seq_len window
+    prediction_length: 1                  # next bar
+    reduction: mean                       # collapse D per-channel forecasts (D=1 here -> passthrough)
+    sign: 1.0                             # flip to -1.0 if val Rank IC comes out negative
+    loss_type: huber                      # huber | mse (diagnostic val_loss only, never backpropped)
+    huber_delta: 1.0
+    series_chunk: 4096
+
+# Singleton roster for `scripts/benchmark.py`. Kept in sync with `model.config` above via
+# the YAML anchor (&chronos_bolt_zeroshot_config / *chronos_bolt_zeroshot_config) — edit
+# the anchor once, both the train (`model:`) and benchmark (`benchmark.models[0]`) paths
+# pick it up.
+benchmark:
+  models:
+    - name: chronos_bolt_zeroshot
+      config: *chronos_bolt_zeroshot_config

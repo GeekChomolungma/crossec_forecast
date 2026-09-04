@@ -116,6 +116,32 @@ class TestModelPluginSystem(unittest.TestCase):
                          sum(p.numel() for p in model.head.parameters()))
 
     @unittest.skipUnless(
+        is_model_available("chronos_bolt_zeroshot"),
+        "chronos backend not installed in this interpreter",
+    )
+    def test_chronos_bolt_zeroshot_point_forecast_contract(self):
+        cfg = {**self.base_cfg, "model_id": "amazon/chronos-bolt-tiny", "context_length": 8}
+        model = build_model("chronos_bolt_zeroshot", cfg)
+        self.assertEqual(model.output_kind, "point_forecast")
+        self.assertTrue(model.zero_shot)
+        # no trainable parameters -> Trainer runs it eval-only
+        self.assertEqual(model.trainable_parameters(), [])
+
+        raw = model(self.dummy_input)
+        self.assertEqual(raw.shape, (self.b, 1))
+        self.assertTrue(torch.isfinite(raw).all())
+
+        score = model.to_score(raw)
+        self.assertEqual(score.shape, (self.b,))
+        self.assertTrue(torch.allclose(score, raw.reshape(self.b)))  # sign=+1 default
+
+        loss = model.compute_loss(raw, {"fwd_logret": torch.randn(self.b, 1)})
+        self.assertEqual(loss.dim(), 0)
+
+        # state_dict carries only the device-anchor buffer, not Chronos's frozen weights
+        self.assertEqual(list(model.state_dict().keys()), ["_dev_anchor"])
+
+    @unittest.skipUnless(
         is_model_available("moment_head_only"),
         "momentfm backend not installed in this interpreter",
     )
