@@ -144,13 +144,13 @@ class Trainer:
         for batch in pbar:
             x = batch["x"].to(self.device)
 
-            raw = self.model(x)
+            raw = self.model(x) # model raw prediction output (logits)
             loss = self.model.compute_loss(raw, batch)
             total_loss += loss.item()
             num_batches += 1
             pbar.set_postfix(loss=f"{total_loss / num_batches:.4f}")
 
-            scores = self.model.to_score(raw).detach().cpu().numpy().reshape(-1)
+            scores = self.model.to_score(raw).detach().cpu().numpy().reshape(-1) # prediction ranked score (higher == more bullish)
             returns = batch["fwd_logret"].squeeze(-1).numpy()
             dates = batch["timestamps"]
 

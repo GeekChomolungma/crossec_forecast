@@ -82,7 +82,7 @@ schema 与默认值定义在 [`crossec_forecast/configs/experiment_schema.py`](.
 | --- | --- | --- |
 | `experiment` | `name`, `seed` | 逻辑实验名（归组 run 与 wandb run）、全局随机种子 |
 | `run` | `name`, `output_root`, `tags` | run 文件夹名（`null` 时自动 `<时间戳>_<模型>_<hash>`）、产物根目录 |
-| `data` | `path`, `target_col`, `fwd_ret_col`, `timestamp_col`, `symbol_col`, `feature_pattern`, `feature_cols`, `seq_len`, `split.*`, `batch_size`, `shuffle_train`, `num_workers`, `drop_last` | 数据路径、列名、特征列选取（正则或显式白名单）、回看窗口 `L`、时序切分比例与 embargo、DataLoader 参数 |
+| `data` | `path`, `target_col`, `fwd_ret_col`, `timestamp_col`, `symbol_col`, `feature_pattern`, `feature_cols`, `cov_pattern`, `cov_cols`, `seq_len`, `split.*`, `batch_size`, `shuffle_train`, `num_workers`, `drop_last` | 数据路径、列名、特征列/协变量列选取（正则或显式白名单）、回看窗口 `L`、时序切分比例与 embargo、DataLoader 参数 |
 | `train` | `epochs`, `lr`, `weight_decay`, `grad_clip_norm`, `early_stopping_patience`, `min_delta`, `device`, `scheduler_*` | 训练与优化超参；早停以 val mean rank IC 为准。**loss 不在这里**——由模型自己拥有（`model.compute_loss`），`loss_type` / `focal_*` 放进 `model.config` |
 | `model` | `name`, `config` | **单模型**（`train` / `infer` 用）：注册名 + 该模型特异化参数字典（含 `loss_type` / `focal_*`） |
 | `benchmark` | `top_quantile`, `models[]` | **模型清单**（`benchmark` 用）：每项 `{name, config}` |
@@ -342,7 +342,12 @@ print(result["summary"], result["checkpoint"])
 - **浮点覆盖要带小数点**：`train.lr=0.0005`，不要写 `5e-4`（YAML 会当字符串）。
 - **struct 模式**：schema 未定义的 key 会报错，是有意的拼写保护；要加新配置项先改 `experiment_schema.py`。
 - **`feature_cols` vs `feature_pattern`**：`data.feature_cols` 给显式列表时**覆盖** `feature_pattern`；
-  两者都会保证 train/val/test 三份切分用同一批特征列。
+  两者都会保证 train/val/test 三份切分用同一批特征列。`data.cov_cols` / `data.cov_pattern` 是同样规则的
+  第二套列选取旋钮（协变量，默认不启用），解析出的列会**紧跟在特征列之后**打包进同一个 `x` 张量
+  （`x[..., :feature_dim]` = 特征，`x[..., feature_dim:feature_dim+cov_dim]` = 协变量）。Trainer 对此
+  完全无感——它只认识一个 `x`，永远只调用 `model(x)`；`feature_dim` / `cov_dim` 随 `seq_len` 一起自动注入
+  每个模型的 `config`，由模型自己的 `forward` 按偏移切片。默认 `cov_pattern/cov_cols` 都是 `null`，
+  `cov_dim=0`，对现有模型（mlp/lstm/dlinear/…）行为零影响。
 - **推理输出为 CSV**：不额外依赖 parquet 引擎；需要 parquet 自行在 `run_infer` 结果上转。
 - **SLURM 路径**：`.sbatch` 在“执行 `sweep.py` 的机器”上渲染，路径风格随该 OS；在 Linux 集群上生成即为 POSIX 路径。
 - **产物默认 gitignore**：`runs/`、`wandb/`、`*.pt`、`benchmark_reports/` 均已忽略。

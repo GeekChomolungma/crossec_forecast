@@ -60,7 +60,9 @@ def build_dataloaders(
     )
     train_ts, val_ts, test_ts = splitter.split_timestamps(df[config.timestamp_col])
 
-    # Datasets
+    # Datasets. `cov_cols` is resolved from train (pattern-matched or explicit) and then
+    # pinned explicitly for val/test — same reasoning as feature_cols: all three splits
+    # must pack `x` with the identical column set/order.
     train_dataset = PanelTimeSeriesDataset(
         data=df,
         seq_len=config.seq_len,
@@ -70,10 +72,13 @@ def build_dataloaders(
         symbol_col=config.symbol_col,
         feature_pattern=config.feature_pattern,
         feature_cols=config.feature_cols,
+        cov_pattern=config.cov_pattern,
+        cov_cols=config.cov_cols,
         allowed_timestamps=train_ts,
     )
 
     feature_cols = train_dataset.feature_cols
+    cov_cols = train_dataset.cov_cols
 
     val_dataset = PanelTimeSeriesDataset(
         data=df,
@@ -83,6 +88,7 @@ def build_dataloaders(
         timestamp_col=config.timestamp_col,
         symbol_col=config.symbol_col,
         feature_cols=feature_cols,
+        cov_cols=cov_cols,
         allowed_timestamps=val_ts,
     )
 
@@ -94,6 +100,7 @@ def build_dataloaders(
         timestamp_col=config.timestamp_col,
         symbol_col=config.symbol_col,
         feature_cols=feature_cols,
+        cov_cols=cov_cols,
         allowed_timestamps=test_ts,
     )
 
@@ -128,6 +135,8 @@ def build_dataloaders(
     meta_info = {
         "feature_cols": feature_cols,
         "num_features": len(feature_cols),
+        "cov_cols": cov_cols,
+        "num_cov": len(cov_cols),
         "seq_len": config.seq_len,
         "n_train_samples": len(train_dataset),
         "n_val_samples": len(val_dataset),

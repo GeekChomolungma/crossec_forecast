@@ -120,7 +120,9 @@ from crossec_forecast.models import BaseClassifierModel, register_model
 class MyCustomModel(BaseClassifierModel):
     def __init__(self, config):
         super().__init__(config)
-        # self.seq_len, self.feature_dim, self.num_classes 自动注入
+        # self.seq_len, self.feature_dim, self.cov_dim, self.num_classes 自动注入
+        # x 是打包好的 [B, seq_len, feature_dim(+cov_dim)] 单一张量：需要协变量的模型自己切
+        # x[..., :self.feature_dim] / x[..., self.feature_dim:self.feature_dim+self.cov_dim]
         self.conv = nn.Conv1d(self.feature_dim, 32, kernel_size=3, padding=1)
         self.fc = nn.Linear(32 * self.seq_len, self.num_classes)
 

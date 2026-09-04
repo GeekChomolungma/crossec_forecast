@@ -11,6 +11,13 @@ class DataConfig:
     symbol_col: str = "symbol"
     feature_pattern: str = r"^crossec_.*_mad_Zscore$"
     feature_cols: Optional[List[str]] = None  # Explicit whitelist; overrides feature_pattern when set
+    # Covariate columns — a second, independent column-selection knob appended AFTER the
+    # feature columns in the packed `x` tensor: x[..., :feature_dim] = features,
+    # x[..., feature_dim:feature_dim+cov_dim] = covariates. Same precedence rule as
+    # feature_cols/feature_pattern: cov_cols wins when set. Default = no covariates (opt-in),
+    # so existing models/configs are unaffected.
+    cov_pattern: Optional[str] = None
+    cov_cols: Optional[List[str]] = None      # Explicit whitelist; overrides cov_pattern when set
     seq_len: int = 6                     # Lookback window L (e.g. current + 5 past bars)
     train_ratio: float = 0.70
     val_ratio: float = 0.15

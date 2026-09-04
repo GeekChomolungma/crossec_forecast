@@ -90,6 +90,7 @@ def _plain(node: Any) -> Any:
 def to_data_config(cfg: DictConfig) -> DataConfig:
     d = cfg.data
     feature_cols = _plain(d.feature_cols) if d.feature_cols is not None else None
+    cov_cols = _plain(d.cov_cols) if d.cov_cols is not None else None
     return DataConfig(
         target_col=str(d.target_col),
         fwd_ret_col=str(d.fwd_ret_col),
@@ -97,6 +98,8 @@ def to_data_config(cfg: DictConfig) -> DataConfig:
         symbol_col=str(d.symbol_col),
         feature_pattern=str(d.feature_pattern),
         feature_cols=feature_cols,
+        cov_pattern=(str(d.cov_pattern) if d.cov_pattern is not None else None),
+        cov_cols=cov_cols,
         seq_len=int(d.seq_len),
         train_ratio=float(d.split.train_ratio),
         val_ratio=float(d.split.val_ratio),
@@ -126,10 +129,24 @@ def to_train_config(cfg: DictConfig, checkpoint_dir: str | Path) -> TrainConfig:
     )
 
 
-def model_build_config(cfg_model: DictConfig, *, seq_len: int, feature_dim: int) -> Dict[str, Any]:
-    """User model config + auto-injected shape keys, ready for ``build_model``."""
+def model_build_config(
+    cfg_model: DictConfig, *, seq_len: int, feature_dim: int, cov_dim: int = 0
+) -> Dict[str, Any]:
+    """User model config + auto-injected shape keys, ready for ``build_model``.
+
+    ``cov_dim`` defaults to 0 (no covariates) so callers that don't pass it keep the
+    exact same behavior as before covariates existed. ``feature_dim`` / ``cov_dim``
+    together describe how a model should slice the packed ``x`` it receives — see
+    ``PanelTimeSeriesDataset``'s docstring for the packing convention.
+    """
     user_cfg = _plain(cfg_model.config) or {}
-    return {"seq_len": int(seq_len), "feature_dim": int(feature_dim), "num_classes": 1, **user_cfg}
+    return {
+        "seq_len": int(seq_len),
+        "feature_dim": int(feature_dim),
+        "cov_dim": int(cov_dim),
+        "num_classes": 1,
+        **user_cfg,
+    }
 
 
 def select_device(device_str: str) -> torch.device:

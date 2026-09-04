@@ -28,6 +28,10 @@ data:
   symbol_col: symbol
   feature_pattern: '^crossec_.*_mad_Zscore$'
   feature_cols: null         # explicit whitelist (list of names) — overrides feature_pattern
+  cov_pattern: null          # opt-in covariate columns, packed into x right after the features
+  cov_cols: null             # explicit whitelist — overrides cov_pattern; e.g. [close] for a
+                              # native-usage TSFM zeroshot wrapper. Default null/null = no
+                              # covariates -> x is unchanged for every existing model.
   seq_len: 512                 # lookback window L; fixed as a control variable across model comparisons
   split:
     train_ratio: 0.70

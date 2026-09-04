@@ -56,6 +56,13 @@ class BaseClassifierModel(nn.Module, ABC):
         self.config = config
         self.seq_len = int(config.get("seq_len", 6))
         self.feature_dim = int(config.get("feature_dim", 24))
+        # Covariate width auto-injected the same way feature_dim is (see
+        # PanelTimeSeriesDataset / pipelines.context.model_build_config). 0 by default —
+        # a model that ignores covariates needs no changes. A model that wants them
+        # slices its own `x[..., self.feature_dim : self.feature_dim + self.cov_dim]`;
+        # `forward(x, **kwargs)` never receives a separate covariate argument — the
+        # Trainer stays fully model-agnostic and only ever hands over one packed `x`.
+        self.cov_dim = int(config.get("cov_dim", 0))
         self.num_classes = int(config.get("num_classes", 1))
         self._loss_fn = None  # lazily built by the default compute_loss
 

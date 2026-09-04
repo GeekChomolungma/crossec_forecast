@@ -36,7 +36,12 @@ def run_train(
     )
 
     # 2. Model ---------------------------------------------------------------------------
-    model_cfg = model_build_config(cfg.model, seq_len=meta["seq_len"], feature_dim=meta["num_features"])
+    model_cfg = model_build_config(
+        cfg.model,
+        seq_len=meta["seq_len"],
+        feature_dim=meta["num_features"],
+        cov_dim=meta.get("num_cov", 0),
+    )
     model = build_model(str(cfg.model.name), model_cfg)
 
     # 3. Train + validate (wandb logs per-epoch via callback) ---------------------------

@@ -45,6 +45,11 @@ class DataSchema:
     symbol_col: str = "symbol"
     feature_pattern: str = r"^crossec_.*_mad_Zscore$"
     feature_cols: Optional[List[str]] = None   # explicit whitelist; overrides feature_pattern
+    # Covariate columns (opt-in, default = none). Same precedence as feature_cols/feature_pattern.
+    # Packed into `x` right after the feature columns: x[..., :feature_dim] = features,
+    # x[..., feature_dim:feature_dim+cov_dim] = covariates — see PanelTimeSeriesDataset.
+    cov_pattern: Optional[str] = None
+    cov_cols: Optional[List[str]] = None       # explicit whitelist; overrides cov_pattern
     seq_len: int = 512
     split: SplitConfig = field(default_factory=SplitConfig)
     batch_size: int = 128

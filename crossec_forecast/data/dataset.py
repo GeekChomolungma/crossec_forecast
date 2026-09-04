@@ -13,6 +13,15 @@ class PanelTimeSeriesDataset(Dataset):
     High-performance Time-Series Dataset for Financial Panel Data.
     Preserves (timestamp, symbol) ordering, supports per-symbol lookback window L=6,
     handles asynchronous listing dates, and filters unrevealed trailing targets.
+
+    ``x`` packing convention: the sample tensor returned as ``x`` is a single
+    ``[seq_len, feature_dim + cov_dim]`` block — the resolved *feature* columns first,
+    the resolved *covariate* columns appended right after, in that fixed order. There is
+    no separate channel threaded through the Trainer for covariates: a model recovers its
+    own slice from ``x`` using ``self.feature_dim`` / ``self.cov_dim`` (auto-injected the
+    same way ``seq_len`` is — see ``models.base.BaseClassifierModel``). ``cov_cols`` /
+    ``cov_pattern`` default to unset -> ``cov_dim == 0`` -> ``x`` is exactly the feature
+    block, byte-for-byte what every existing model already expects.
     """
 
     def __init__(
@@ -25,6 +34,8 @@ class PanelTimeSeriesDataset(Dataset):
         symbol_col: str = "symbol",
         feature_pattern: str = r"^crossec_.*_mad_Zscore$",
         feature_cols: Optional[List[str]] = None,
+        cov_pattern: Optional[str] = None,
+        cov_cols: Optional[List[str]] = None,
         allowed_timestamps: Optional[Set[Any]] = None,
         is_inference: bool = False,
     ):
@@ -58,6 +69,16 @@ class PanelTimeSeriesDataset(Dataset):
                 f"No feature columns found matching pattern '{feature_pattern}' in DataFrame."
             )
 
+        # Covariate columns: same precedence rule as feature_cols/feature_pattern, but
+        # (unlike features) an empty result is the valid default — covariates are opt-in.
+        if cov_cols is not None:
+            self.cov_cols = list(cov_cols)
+        elif cov_pattern is not None:
+            cov_regex = re.compile(cov_pattern)
+            self.cov_cols = [c for c in df.columns if cov_regex.match(c)]
+        else:
+            self.cov_cols = []
+
         # Ensure sorted by (timestamp, symbol)
         if not df[timestamp_col].is_monotonic_increasing:
             df = df.sort_values(by=[timestamp_col, symbol_col]).reset_index(drop=True)
@@ -65,10 +86,13 @@ class PanelTimeSeriesDataset(Dataset):
             df = df.reset_index(drop=True)
 
         self.num_features = len(self.feature_cols)
+        self.num_cov = len(self.cov_cols)
 
-        # Precompute feature array for O(1) slicing
-        self.features_np = np.nan_to_num(
-            df[self.feature_cols].to_numpy(dtype=np.float32, copy=True),
+        # Precompute the packed [feature..., cov...] array once for O(1) slicing. Column
+        # order is fixed (features, then covariates) — see the class docstring for the
+        # `x` packing convention every model relies on via self.feature_dim / self.cov_dim.
+        self.packed_np = np.nan_to_num(
+            df[self.feature_cols + self.cov_cols].to_numpy(dtype=np.float32, copy=True),
             nan=0.0
         )
 
@@ -152,7 +176,7 @@ class PanelTimeSeriesDataset(Dataset):
 
     def __getitem__(self, idx: int) -> Dict[str, Any]:
         item = self.samples[idx]
-        x_np = self.features_np[item["indices"]]  # Shape: [seq_len, num_features]
+        x_np = self.packed_np[item["indices"]]  # Shape: [seq_len, num_features + num_cov]
         return {
             "x": torch.from_numpy(x_np),                             # [L, D]
             "y": torch.tensor([item["y"]], dtype=torch.float32),     # [1]
