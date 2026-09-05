@@ -31,12 +31,16 @@ _log = logging.getLogger(__name__)
 # stray top-level heavy import, a version-incompat error at import, ...), it degrades
 # to "that one model is unavailable" + a warning, instead of breaking
 # ``import crossec_forecast`` for every model — including the ones this interpreter
-# could run. Add new TSFM wrappers here by module name.
+# could run. Add new TSFM wrappers here by dotted submodule path (relative to
+# `crossec_forecast.models`) — one subpackage per model family (`chronos/`, `moment/`,
+# ...), one module per adaptation paradigm (`head_only.py`, `zeroshot.py`, ...). The
+# registered name (`@register_model(...)` in each module) is independent of this path and
+# never changes when files move — only this list and each module's own relative imports do.
 _OPTIONAL_WRAPPER_MODULES: tuple = (
-    "chronos_bolt_head_only",
-    "chronos_bolt_zeroshot",
-    "moment_head_only",
-    "moment_zeroshot",
+    "chronos.head_only",
+    "chronos.zeroshot",
+    "moment.head_only",
+    "moment.zeroshot",
 )
 
 for _modname in _OPTIONAL_WRAPPER_MODULES:

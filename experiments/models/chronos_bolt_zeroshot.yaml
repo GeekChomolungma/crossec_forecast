@@ -9,7 +9,7 @@
 #
 # `data.extra_input_cols` is pinned to a single RAW price column (`close`, not a
 # cross-sectionally z-scored `crossec_*` feature, and NOT `data.feature_cols` — see
-# models/chronos_bolt_zeroshot.py for why the two are kept separate). The model log-diffs
+# models/chronos/zeroshot.py for why the two are kept separate). The model log-diffs
 # it internally into a realized log-return series before forecasting, so its forecast
 # comes out in the exact same units/horizon as `fwd_logret_1`. `feature_cols` is left at
 # its base-config default (the crossec_* panel) — simply unused by this model, which only

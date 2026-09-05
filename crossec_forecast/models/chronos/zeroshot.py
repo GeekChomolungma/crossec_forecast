@@ -78,9 +78,9 @@ from typing import Dict, Any
 import torch
 import torch.nn.functional as F
 
-from .pretrained import PretrainedBackboneModel
-from .registry import register_model
-from ._optional import require_modules
+from ..pretrained import PretrainedBackboneModel
+from ..registry import register_model
+from .._optional import require_modules
 
 
 @register_model("chronos_bolt_zeroshot")

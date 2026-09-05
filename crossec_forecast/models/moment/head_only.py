@@ -36,9 +36,9 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from .pretrained import PretrainedBackboneModel
-from .registry import register_model
-from ._optional import require_modules
+from ..pretrained import PretrainedBackboneModel
+from ..registry import register_model
+from .._optional import require_modules
 
 
 @register_model("moment_head_only")

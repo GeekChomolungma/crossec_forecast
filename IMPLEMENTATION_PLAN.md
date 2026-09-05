@@ -132,10 +132,18 @@ crossec_forecast/
 │   ├── __init__.py            # 模型自动扫描与注册导出
 │   ├── base.py                # BaseClassifierModel 抽象基类
 │   ├── registry.py            # @register_model 与 build_model 工厂
+│   ├── _optional.py           # 可选后端依赖隔离 (require_modules / ModelDependencyError)
 │   ├── lstm.py                # LSTM 模型插件
 │   ├── mlp.py                 # Flattened MLP / Linear 模型插件
 │   ├── dlinear.py             # DLinear 时序模型插件
-│   └── pretrained.py          # PretrainedBackboneModel 接口 (未注册，留给未来预训练骨干)
+│   ├── pretrained.py          # PretrainedBackboneModel 接口 (预训练骨干模型的基类)
+│   ├── pretrained_research.md # 预训练时序基座模型选型调研
+│   ├── chronos/                # Chronos-Bolt 系列插件 (每个适配范式一个文件)
+│   │   ├── head_only.py        # 冻结骨干 + 可训练线性头
+│   │   └── zeroshot.py         # 纯零样本，无训练参数
+│   └── moment/                  # MOMENT 系列插件 (每个适配范式一个文件)
+│       ├── head_only.py        # 冻结编码器 + 可训练线性头
+│       └── zeroshot.py         # 纯零样本，读重构误差因子
 ├── engine/
 │   ├── __init__.py
 │   ├── trainer.py             # 统一 Trainer (基于 Val Mean Rank IC 进行早停与权重保存)

@@ -121,7 +121,7 @@ class TestModelPluginSystem(unittest.TestCase):
     )
     def test_chronos_bolt_zeroshot_point_forecast_contract(self):
         # Uses extra_input_cols, NOT feature_cols — feature_dim=0 here on purpose (see
-        # models/chronos_bolt_zeroshot.py's module docstring).
+        # models/chronos/zeroshot.py's module docstring).
         cfg = {
             "seq_len": self.l, "feature_dim": 0, "cov_dim": 0, "extra_input_dim": 1,
             "num_classes": 1, "model_id": "amazon/chronos-bolt-tiny", "context_length": 8,

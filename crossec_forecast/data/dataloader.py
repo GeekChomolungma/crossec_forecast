@@ -19,9 +19,9 @@ def panel_collate_fn(batch: List[Dict[str, Any]]) -> Dict[str, Any]:
     timestamps = [item["timestamp"] for item in batch]
 
     return {
-        "x": x,
-        "y": y,
-        "fwd_logret": fwd_ret,
+        "x": x,                # Feature, Cov, Extra_input cols packed into [B, L, D]
+        "y": y,                # target cols (model.compute_loss uses these)
+        "fwd_logret": fwd_ret, # ground truth for scoring / ranking (model.to_score uses these)
         "symbols": symbols,
         "timestamps": timestamps,
     }
