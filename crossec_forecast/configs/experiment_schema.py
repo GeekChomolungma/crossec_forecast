@@ -39,17 +39,28 @@ class SplitConfig:
 @dataclass
 class DataSchema:
     path: str = ""
-    target_col: str = "logret1_win"
+    # batch["y"] / model.compute_loss's own target(s) — a list (see BaseClassifierModel
+    # .target_dim). NOT the Rank-IC ground truth; that is fwd_ret_col below, kept singular
+    # and mandatory on purpose so every model in a run is scored against the same series —
+    # never fold a "forward return" into target_cols.
+    target_cols: List[str] = field(default_factory=lambda: ["logret1_win"])
     fwd_ret_col: str = "fwd_logret_1"
     timestamp_col: str = "timestamp"
     symbol_col: str = "symbol"
     feature_pattern: str = r"^crossec_.*_mad_Zscore$"
     feature_cols: Optional[List[str]] = None   # explicit whitelist; overrides feature_pattern
     # Covariate columns (opt-in, default = none). Same precedence as feature_cols/feature_pattern.
-    # Packed into `x` right after the feature columns: x[..., :feature_dim] = features,
-    # x[..., feature_dim:feature_dim+cov_dim] = covariates — see PanelTimeSeriesDataset.
     cov_pattern: Optional[str] = None
     cov_cols: Optional[List[str]] = None       # explicit whitelist; overrides cov_pattern
+    # Extra-input columns (opt-in): raw/passthrough columns for a model's own internal use
+    # (e.g. a raw price series a TSFM wrapper log-diffs itself) — distinct from cov_cols so
+    # "feed me this raw column verbatim" doesn't overload feature_cols' established meaning.
+    extra_input_pattern: Optional[str] = None
+    extra_input_cols: Optional[List[str]] = None  # explicit whitelist; overrides extra_input_pattern
+    # `x` packing order: [feature..., cov..., extra_input...] — see PanelTimeSeriesDataset
+    # docstring. A model recovers its own slice via self.feature_dim / cov_dim /
+    # extra_input_dim (auto-injected alongside seq_len). At least one of
+    # feature_cols/cov_cols/extra_input_cols must resolve non-empty.
     seq_len: int = 512
     split: SplitConfig = field(default_factory=SplitConfig)
     batch_size: int = 128

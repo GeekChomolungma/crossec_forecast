@@ -10,7 +10,7 @@ model:
   name: moment_head_only
   config:
     model_id: AutonLab/MOMENT-1-small   # small | base | large
-    task: classification                # classification (logret1_win) | regression (needs data.target_col=fwd_logret_1)
+    task: classification                # classification (logret1_win) | regression (needs data.target_cols=[fwd_logret_1])
     head_hidden: null                   # null = LayerNorm + Linear(d_model, 1); int = + hidden layer
     # regression only:
     # loss_type: huber                  # huber | mse

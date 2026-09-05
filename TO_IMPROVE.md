@@ -77,17 +77,34 @@ and `.reshape(-1)`.
 
 ## C6 — Pattern-B raw-series channel (separate from the `fwd_logret` scalar)
 
-Point-forecast / OHLCV models need a raw per-symbol series window `[L, k]` (e.g. raw
-`close` / `logret`, or OHLCV for Kronos), which is **not** the single `fwd_logret`
-scalar the dataset carries today.
+**Partially done**, differently from the original plan below: `data.extra_input_cols` /
+`extra_input_pattern` now give `PanelTimeSeriesDataset` a third, opt-in column group,
+packed into the *same* `x` tensor right after `cov_cols` (`x[..., feature_dim+cov_dim :
+feature_dim+cov_dim+extra_input_dim]`), auto-injected as `self.extra_input_dim` on
+`BaseClassifierModel`. `chronos_bolt_zeroshot` is the first consumer: `extra_input_cols:
+[close]`, log-diffed internally into a realized log-return series before forecasting.
 
-**Fix:**
-- `PanelTimeSeriesDataset`: opt-in `raw_cols` → precompute a separate array, surface an
-  extra `[L, k]` tensor per sample. **Different missing-value handling** — cannot
-  `nan_to_num(0.0)` a raw price series; drop the sample or normalize per the model.
-- `panel_collate_fn`: stack the extra key.
-- `Trainer.train_epoch` / `validate` / `predict` + `run_infer` loop: pass batch extras
-  through as `model(x, **extras)` (the `forward(x, **kwargs)` hook already exists).
+This deliberately did **not** go the `model(x, **extras)` / separate-tensor route
+sketched below — see the `x`-packing design discussion this shipped from: keeping
+`Trainer.train_epoch` / `validate` / `predict` + `run_infer` blind to any per-model extra
+argument (they only ever do `x = batch["x"]; model(x)`) was judged more important than a
+dedicated tensor, and one packed `x` was sufficient once the column group is
+independently selectable and self-describing (`extra_input_dim`).
+
+**Still open** (real gaps, not addressed by the above):
+
+- **Missing-value handling.** `extra_input_cols` still goes through the same
+  `nan_to_num(0.0)` as feature/cov — fine for z-scored features, wrong for a raw price
+  series NaN would silently become a nonsense price. Needs its own policy (drop the
+  sample, or forward/back-fill within-symbol) before a real (non-mock) raw price column
+  with gaps is used.
+- **Independent window length.** `extra_input_cols` shares `seq_len` with feature/cov —
+  a model wanting more raw history than the from-scratch models' `L` (Kronos, longer
+  Chronos contexts) has no way to ask for it independently. Not needed yet; revisit if a
+  model actually wants it.
+- **OHLCV / multi-field raw schema (Kronos).** `extra_input_cols` is just "N more numeric
+  columns packed into x" — fine for a single raw series like `close`, but Kronos wants a
+  structured OHLCV schema, which is a different shape of "extra", not just more columns.
 
 ## C7 — backtester / metrics hardcode column names
 
@@ -109,10 +126,13 @@ Changing `pred_prob -> score` (C1) touches `test_predictions.csv`, `predictions.
 files needs updating in lockstep. Also: `train/loss` is now a per-model quantity, so
 cross-model loss curves in wandb are no longer comparable (leave as-is, just be aware).
 
-## C10 — multi-target routing in the dataset (only if needed)
+## C10 — multi-target routing in the dataset — Done
 
-Today a benchmark run shares one `target_col`. A model's `compute_loss` can already read
-`batch["fwd_logret"]` instead of `batch["y"]`, so mixed binary + regression models in one
-run mostly work without dataset changes. If a task needs a target column that is neither
-`target_col` nor `fwd_ret_col` (e.g. `logret3_win`), add `extra_target_cols` passthrough
-to `PanelTimeSeriesDataset` / `panel_collate_fn`.
+`data.target_col` (singular) is now `data.target_cols` (a list) → `batch["y"]` is
+`[B, target_dim]`, `target_dim` auto-injected on `BaseClassifierModel` alongside
+`feature_dim`/`cov_dim`/`extra_input_dim`. A model that needs a target column beyond the
+default single one just lists it in `target_cols`; no dataset/collate change needed per
+model. `fwd_ret_col` (the Rank-IC ground truth, `batch["fwd_logret"]`) stays deliberately
+**separate** from `target_cols` — singular, mandatory, shared by every model in a run —
+so cross-model Rank IC comparability in a benchmark can't be broken by one model quietly
+redefining "the forward return" for itself.

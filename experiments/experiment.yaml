@@ -22,16 +22,19 @@ run:
 # ---- data / split ---------------------------------------------------------------------
 data:
   path: ./data/standard_panel.csv
-  target_col: logret1_win
-  fwd_ret_col: fwd_logret_1
+  target_cols: [logret1_win]   # -> batch["y"], a model's own compute_loss target(s)
+  fwd_ret_col: fwd_logret_1    # -> batch["fwd_logret"], the ONE shared Rank-IC ground truth;
+                                # never model-configurable per-target, kept separate from target_cols
   timestamp_col: timestamp
   symbol_col: symbol
   feature_pattern: '^crossec_.*_mad_Zscore$'
   feature_cols: null         # explicit whitelist (list of names) — overrides feature_pattern
   cov_pattern: null          # opt-in covariate columns, packed into x right after the features
-  cov_cols: null             # explicit whitelist — overrides cov_pattern; e.g. [close] for a
-                              # native-usage TSFM zeroshot wrapper. Default null/null = no
-                              # covariates -> x is unchanged for every existing model.
+  cov_cols: null             # explicit whitelist — overrides cov_pattern. Default null/null =
+                              # no covariates -> x is unchanged for every existing model.
+  extra_input_pattern: null  # opt-in RAW/passthrough columns (e.g. a raw price series a TSFM
+  extra_input_cols: null     # wrapper log-diffs itself), packed into x right after cov. Explicit
+                              # list overrides the pattern. Default null/null = none.
   seq_len: 512                 # lookback window L; fixed as a control variable across model comparisons
   split:
     train_ratio: 0.70
@@ -86,7 +89,7 @@ benchmark:
     # scored on val / test Rank IC next to the trained models.
     - {name: moment_zeroshot,  config: {model_id: AutonLab/MOMENT-1-small, anomaly_criterion: mse, sign: 1.0}}
     # - {name: moment_head_only, config: {model_id: AutonLab/MOMENT-1-small, task: classification}}
-    # chronos_bolt_head_only needs data.target_col=fwd_logret_1 (regression target), which
+    # chronos_bolt_head_only needs data.target_cols=[fwd_logret_1] (regression target), which
     # is a whole-run data override — keep it in its own benchmark config, not this shared
     # roster. See experiments/models/chronos_bolt_head_only.yaml.
 

@@ -41,11 +41,14 @@ def run_infer(
     cov_cols = (
         list(cfg.data.cov_cols) if cfg.data.cov_cols is not None else None
     )
+    extra_input_cols = (
+        list(cfg.data.extra_input_cols) if cfg.data.extra_input_cols is not None else None
+    )
 
     dataset = PanelTimeSeriesDataset(
         data=path,
         seq_len=int(cfg.data.seq_len),
-        target_col=str(cfg.data.target_col),
+        target_cols=list(cfg.data.target_cols),
         fwd_ret_col=str(cfg.data.fwd_ret_col),
         timestamp_col=str(cfg.data.timestamp_col),
         symbol_col=str(cfg.data.symbol_col),
@@ -53,6 +56,8 @@ def run_infer(
         feature_cols=feature_cols,
         cov_pattern=(str(cfg.data.cov_pattern) if cfg.data.cov_pattern is not None else None),
         cov_cols=cov_cols,
+        extra_input_pattern=(str(cfg.data.extra_input_pattern) if cfg.data.extra_input_pattern is not None else None),
+        extra_input_cols=extra_input_cols,
         is_inference=True,
     )
     loader = DataLoader(
@@ -68,6 +73,8 @@ def run_infer(
         seq_len=dataset.seq_len,
         feature_dim=dataset.num_features,
         cov_dim=dataset.num_cov,
+        extra_input_dim=dataset.num_extra_input,
+        target_dim=dataset.num_target,
     )
     model = build_model(str(cfg.model.name), model_cfg)
     state = torch.load(str(checkpoint), map_location="cpu", weights_only=True)

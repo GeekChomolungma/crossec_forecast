@@ -162,8 +162,8 @@ cfg.train.device ──▶ select_device(...)  (train.* 唯一被用到的字段
 | 需要的段 | 用在哪 | 备注 |
 |---|---|---|
 | `data.path` | 待打分的 panel(可被 `--data` 覆盖) | |
-| `data.target_col`, `fwd_ret_col`, `timestamp_col`, `symbol_col` | 构造 `PanelTimeSeriesDataset` | 推理时 `target_col` 不参与 loss,但仍需列存在或走 `is_inference` 分支 |
-| `data.feature_pattern`, `feature_cols`, `cov_pattern`, `cov_cols` | 决定打包进 `x` 的列 | 必须和训练该 checkpoint 时的设置**完全一致**,否则维度对不上 |
+| `data.target_cols`, `fwd_ret_col`, `timestamp_col`, `symbol_col` | 构造 `PanelTimeSeriesDataset` | 推理时 `target_cols` 不参与 loss,但仍需列存在或走 `is_inference` 分支 |
+| `data.feature_pattern`, `feature_cols`, `cov_pattern`, `cov_cols`, `extra_input_pattern`, `extra_input_cols` | 决定打包进 `x` 的三段列(feature/cov/extra_input,固定顺序) | 必须和训练该 checkpoint 时的设置**完全一致**,否则维度对不上 |
 | `data.seq_len`, `batch_size`, `num_workers` | 滑窗长度、推理 batch | |
 | `model.name`, `model.config` | 决定 `build_model` 出的模型结构 | 必须和 checkpoint 的模型结构一致 |
 | `train.device` | 选 cpu/cuda/mps | `train.*` 里唯一用到的字段 |
@@ -208,12 +208,13 @@ cfg.wandb.* ──▶ WandbTracker(汇总表 + 最优行写 summary)
 ## 5. 一个模型片段如何"一稿三用"
 
 以 [`experiments/models/chronos_bolt_zeroshot.yaml`](models/chronos_bolt_zeroshot.yaml) 为例——
-它需要覆盖 `data.feature_cols`(整跑生效,train/infer/benchmark 都吃到),同时用 YAML anchor 让
-`model.config` 和 `benchmark.models[0].config` 保持一份定义、两处复用:
+它需要覆盖 `data.extra_input_cols`(整跑生效,train/infer/benchmark 都吃到;注意不是
+`feature_cols`,两者是独立的列组,见下方"四类列"补充),同时用 YAML anchor 让 `model.config`
+和 `benchmark.models[0].config` 保持一份定义、两处复用:
 
 ```yaml
 data:
-  feature_cols: [crossec_logret_1_mad_Zscore]     # 三条 pipeline 都吃这个覆盖
+  extra_input_cols: [close]                        # 三条 pipeline 都吃这个覆盖
 
 model:                                             # train / infer 用
   name: chronos_bolt_zeroshot
@@ -235,10 +236,31 @@ python scripts/infer.py     -c experiments/experiment.yaml -c experiments/models
 python scripts/benchmark.py -c experiments/experiment.yaml -c experiments/models/chronos_bolt_zeroshot.yaml
 ```
 
-- `train` / `infer` 走 `model:` 那一份;`benchmark` 走 `benchmark.models[0]` 那一份;`data.feature_cols`
+- `train` / `infer` 走 `model:` 那一份;`benchmark` 走 `benchmark.models[0]` 那一份;`data.extra_input_cols`
   三条路都生效。
-- SLURM 上等价地用 `scripts/slurm/benchmark.sbatch` 的 `CONFIG_EXTRA` 旋钮追加这份片段:
-  `CONFIG_EXTRA="experiments/models/chronos_bolt_zeroshot.yaml" sbatch scripts/slurm/benchmark.sbatch`。
+
+### 5.1 补充:`data.*` 的四类列角色
+
+`PanelTimeSeriesDataset` 统一解析四个独立的列选取旋钮,解析结果(具体列名 + 数量)经 `meta` /
+`model_build_config` 自动注入每个模型的 `config`,固化成 `BaseClassifierModel` 上的
+`self.feature_dim / cov_dim / extra_input_dim / target_dim`——模型只认识自己的宽度,从不硬编码列名:
+
+| 列组 | YAML 键 | pattern 变体 | 打包去向 | 默认 |
+| --- | --- | --- | --- | --- |
+| 特征 | `feature_cols` | `feature_pattern` | `x[..., :feature_dim]` | crossec_* zscore 面板(24 列) |
+| 协变量 | `cov_cols` | `cov_pattern` | `x[..., feature_dim:feature_dim+cov_dim]` | 空(opt-in) |
+| 原始透传 | `extra_input_cols` | `extra_input_pattern` | `x[..., feature_dim+cov_dim:...+extra_input_dim]` | 空(opt-in) |
+| 训练目标 | `target_cols` | 无 pattern,只能显式列表 | `batch["y"]`,`[B, target_dim]` | `[logret1_win]` |
+
+**`fwd_ret_col` 不在这四类里**,永远单数、必填、全局共享(`batch["fwd_logret"]`)——它是全框架
+唯一的 Rank IC 真值,一次 run 里所有模型必须对着同一份前视收益排序,绝不允许每个模型各自指定。
+
+`feature_cols`/`cov_cols`/`extra_input_cols` 三者**至少要有一个非空**,`x` 总宽度才不为 0;
+不再要求 `feature_cols` 单独非空——像 `chronos_bolt_zeroshot` 这样只用 `extra_input_cols` 的模型,
+可以把 `feature_cols` 留空(不设置时仍走 `feature_pattern` 默认匹配 24 列,只是模型自己不读那段)。
+
+SLURM 上等价地用 `scripts/slurm/benchmark.sbatch` 的 `CONFIG_EXTRA` 旋钮追加这份片段:
+`CONFIG_EXTRA="experiments/models/chronos_bolt_zeroshot.yaml" sbatch scripts/slurm/benchmark.sbatch`。
 
 ---
 
@@ -367,10 +389,10 @@ python scripts/benchmark.py -c experiments/experiment.yaml \
 
 | 现象 | 原因 | 对策 |
 |---|---|---|
-| 把某模型塞进共享 `experiment.yaml` 的 `benchmark.models[]`,跑起来不报错但指标很奇怪 | 该模型需要专属 `data:` 覆盖(如 `feature_cols`/`target_col`),共享 roster 只有一份 `data:`,模型静默吃到了不对的输入维度 | 该模型自己的片段里单独定义一份只含自己的 `benchmark.models`(§5),别塞共享 roster |
+| 把某模型塞进共享 `experiment.yaml` 的 `benchmark.models[]`,跑起来不报错但指标很奇怪(或直接报 `extra_input_dim` 相关的 ValueError) | 该模型需要专属 `data:` 覆盖(如 `extra_input_cols`/`target_cols`),共享 roster 只有一份 `data:`,模型静默吃到了不对的输入维度 | 该模型自己的片段里单独定义一份只含自己的 `benchmark.models`(§5),别塞共享 roster |
 | 改了 `model.config` 里的某个新超参,benchmark 跑出来没变化 | benchmark pipeline 根本不读 `cfg.model`(§2) | 改的是 `benchmark.models[].config`,不是 `model.config` |
 | 覆盖 `benchmark.models` 后,发现共享 roster 里原来的模型"消失"了 | list 是整体替换,不是追加(§3) | 想追加就把原列表元素也抄一遍写全,或者干脆只用 CLI `benchmark.models=...` 一次性给完整列表 |
 | YAML 里写了 schema 没有的顶层 key(如拼错 `trian.lr`) | struct 模式的拼写保护生效 | 检查 key 拼写;真要加新顶层配置项,先去改 [`experiment_schema.py`](../crossec_forecast/configs/experiment_schema.py) |
 | `model.config` 里写了个奇怪的 key,没有任何报错 | `model.config` 是开放 `Dict[str, Any]`,没有 struct 保护 | 模型自己的 `__init__`/`config.get(...)` 里做校验(参考 `moment_zeroshot` 对 `anomaly_criterion` 的显式校验) |
 | 浮点覆盖写了 `train.lr=5e-4` 没生效 | YAML/dotlist 会把它当字符串,不是浮点 | 写成带小数点的 `0.0005` |
-| infer 时报维度不匹配 | `data.feature_cols`/`cov_cols`/`seq_len` 和训练该 checkpoint 时不一致 | infer 复用训练 run 落盘的 `runs/.../config.yaml` 作为 `-c`,而不是手写一份新的 |
+| infer 时报维度不匹配 | `data.feature_cols`/`cov_cols`/`extra_input_cols`/`seq_len` 和训练该 checkpoint 时不一致 | infer 复用训练 run 落盘的 `runs/.../config.yaml` 作为 `-c`,而不是手写一份新的 |

@@ -34,7 +34,7 @@ def main():
     # 2. Build Zero-Leakage DataLoaders with L=6 lookback window & Embargo
     print("\n[Step 2/3] Building DataLoaders with lookback L=6 and Embargo isolation...")
     data_config = DataConfig(
-        target_col="logret1_win",
+        target_cols=["logret1_win"],
         fwd_ret_col="fwd_logret_1",
         timestamp_col="timestamp",
         symbol_col="symbol",

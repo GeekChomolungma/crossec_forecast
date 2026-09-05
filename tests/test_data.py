@@ -43,7 +43,7 @@ class TestDataPipeline(unittest.TestCase):
         dataset = PanelTimeSeriesDataset(
             data=self.df,
             seq_len=6,
-            target_col="logret1_win",
+            target_cols=["logret1_win"],
             fwd_ret_col="fwd_logret_1",
             timestamp_col="timestamp",
             symbol_col="symbol",

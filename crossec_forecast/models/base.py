@@ -55,14 +55,24 @@ class BaseClassifierModel(nn.Module, ABC):
         super().__init__()
         self.config = config
         self.seq_len = int(config.get("seq_len", 6))
+        # `x` is packed as [feature..., cov..., extra_input...] (see
+        # PanelTimeSeriesDataset's docstring) and auto-injected here the same way
+        # seq_len is (pipelines.context.model_build_config) — a model recovers its own
+        # slice via these three widths; `forward(x, **kwargs)` never receives cov/
+        # extra_input as separate arguments, the Trainer only ever hands over one `x`:
+        #   x[..., :feature_dim]                                   -> features
+        #   x[..., feature_dim : feature_dim+cov_dim]               -> covariates
+        #   x[..., feature_dim+cov_dim : feature_dim+cov_dim+extra_input_dim] -> extra_input
+        # All default to the pre-existing behavior when unset: feature_dim=24 (the crossec
+        # panel), cov_dim=extra_input_dim=0 (opt-in, unused).
         self.feature_dim = int(config.get("feature_dim", 24))
-        # Covariate width auto-injected the same way feature_dim is (see
-        # PanelTimeSeriesDataset / pipelines.context.model_build_config). 0 by default —
-        # a model that ignores covariates needs no changes. A model that wants them
-        # slices its own `x[..., self.feature_dim : self.feature_dim + self.cov_dim]`;
-        # `forward(x, **kwargs)` never receives a separate covariate argument — the
-        # Trainer stays fully model-agnostic and only ever hands over one packed `x`.
         self.cov_dim = int(config.get("cov_dim", 0))
+        self.extra_input_dim = int(config.get("extra_input_dim", 0))
+        # Width of batch["y"] (target_cols) — NOT the Rank-IC ground truth (batch
+        # ["fwd_logret"], always exactly 1 column, never model-configurable — see
+        # PanelTimeSeriesDataset's docstring). Defaults to 1 so existing single-target
+        # models are unaffected.
+        self.target_dim = int(config.get("target_dim", 1))
         self.num_classes = int(config.get("num_classes", 1))
         self._loss_fn = None  # lazily built by the default compute_loss
 

@@ -41,6 +41,8 @@ def run_train(
         seq_len=meta["seq_len"],
         feature_dim=meta["num_features"],
         cov_dim=meta.get("num_cov", 0),
+        extra_input_dim=meta.get("num_extra_input", 0),
+        target_dim=meta.get("num_target", 1),
     )
     model = build_model(str(cfg.model.name), model_cfg)
 

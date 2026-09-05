@@ -91,8 +91,9 @@ def to_data_config(cfg: DictConfig) -> DataConfig:
     d = cfg.data
     feature_cols = _plain(d.feature_cols) if d.feature_cols is not None else None
     cov_cols = _plain(d.cov_cols) if d.cov_cols is not None else None
+    extra_input_cols = _plain(d.extra_input_cols) if d.extra_input_cols is not None else None
     return DataConfig(
-        target_col=str(d.target_col),
+        target_cols=list(_plain(d.target_cols)),
         fwd_ret_col=str(d.fwd_ret_col),
         timestamp_col=str(d.timestamp_col),
         symbol_col=str(d.symbol_col),
@@ -100,6 +101,8 @@ def to_data_config(cfg: DictConfig) -> DataConfig:
         feature_cols=feature_cols,
         cov_pattern=(str(d.cov_pattern) if d.cov_pattern is not None else None),
         cov_cols=cov_cols,
+        extra_input_pattern=(str(d.extra_input_pattern) if d.extra_input_pattern is not None else None),
+        extra_input_cols=extra_input_cols,
         seq_len=int(d.seq_len),
         train_ratio=float(d.split.train_ratio),
         val_ratio=float(d.split.val_ratio),
@@ -130,20 +133,29 @@ def to_train_config(cfg: DictConfig, checkpoint_dir: str | Path) -> TrainConfig:
 
 
 def model_build_config(
-    cfg_model: DictConfig, *, seq_len: int, feature_dim: int, cov_dim: int = 0
+    cfg_model: DictConfig,
+    *,
+    seq_len: int,
+    feature_dim: int,
+    cov_dim: int = 0,
+    extra_input_dim: int = 0,
+    target_dim: int = 1,
 ) -> Dict[str, Any]:
     """User model config + auto-injected shape keys, ready for ``build_model``.
 
-    ``cov_dim`` defaults to 0 (no covariates) so callers that don't pass it keep the
-    exact same behavior as before covariates existed. ``feature_dim`` / ``cov_dim``
-    together describe how a model should slice the packed ``x`` it receives — see
-    ``PanelTimeSeriesDataset``'s docstring for the packing convention.
+    ``cov_dim`` / ``extra_input_dim`` default to 0 and ``target_dim`` to 1 so callers that
+    don't pass them keep the exact same behavior as before those column groups existed.
+    ``feature_dim`` / ``cov_dim`` / ``extra_input_dim`` together describe how a model
+    should slice the packed ``x`` it receives; ``target_dim`` describes the width of
+    ``batch["y"]`` — see ``PanelTimeSeriesDataset``'s docstring for the packing convention.
     """
     user_cfg = _plain(cfg_model.config) or {}
     return {
         "seq_len": int(seq_len),
         "feature_dim": int(feature_dim),
         "cov_dim": int(cov_dim),
+        "extra_input_dim": int(extra_input_dim),
+        "target_dim": int(target_dim),
         "num_classes": 1,
         **user_cfg,
     }

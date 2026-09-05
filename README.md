@@ -48,7 +48,7 @@ from crossec_forecast import (
 
 # 1. 加载数据并构建 DataLoader (L=6)
 data_config = DataConfig(
-    target_col="logret1_win",
+    target_cols=["logret1_win"],
     fwd_ret_col="fwd_logret_1",
     seq_len=6,
     train_ratio=0.70,
@@ -120,9 +120,11 @@ from crossec_forecast.models import BaseClassifierModel, register_model
 class MyCustomModel(BaseClassifierModel):
     def __init__(self, config):
         super().__init__(config)
-        # self.seq_len, self.feature_dim, self.cov_dim, self.num_classes 自动注入
-        # x 是打包好的 [B, seq_len, feature_dim(+cov_dim)] 单一张量：需要协变量的模型自己切
-        # x[..., :self.feature_dim] / x[..., self.feature_dim:self.feature_dim+self.cov_dim]
+        # self.seq_len, self.feature_dim, self.cov_dim, self.extra_input_dim,
+        # self.target_dim, self.num_classes 自动注入。x 是打包好的单一张量
+        # [B, seq_len, feature_dim(+cov_dim)(+extra_input_dim)]：需要协变量/原始透传列的
+        # 模型自己按固定偏移切片，Trainer 全程只认识这一个 x，不做任何拆分。
+        # y 同理是 [B, target_dim]（默认 target_dim=1，对应 target_cols 里的单个目标列）。
         self.conv = nn.Conv1d(self.feature_dim, 32, kernel_size=3, padding=1)
         self.fc = nn.Linear(32 * self.seq_len, self.num_classes)
 

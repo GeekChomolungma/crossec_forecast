@@ -77,11 +77,13 @@ class BenchmarkEngine:
                 skipped.append(model_name)
                 continue
 
-            # Automatically inject feature_dim / cov_dim / seq_len
+            # Automatically inject feature_dim / cov_dim / extra_input_dim / target_dim / seq_len
             full_model_cfg = {
                 "seq_len": self.meta_info["seq_len"],
                 "feature_dim": self.meta_info["num_features"],
                 "cov_dim": self.meta_info.get("num_cov", 0),
+                "extra_input_dim": self.meta_info.get("num_extra_input", 0),
+                "target_dim": self.meta_info.get("num_target", 1),
                 "num_classes": 1,
                 **user_m_cfg,
             }

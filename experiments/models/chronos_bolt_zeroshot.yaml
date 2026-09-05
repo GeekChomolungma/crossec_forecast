@@ -7,35 +7,44 @@
 # Needs the `chronos` backend (recent Python):  pip install -e ".[chronos]"
 #   python scripts/train.py -c experiments/experiment.yaml -c experiments/models/chronos_bolt_zeroshot.yaml
 #
-# `data.feature_cols` is pinned to a single return-like column so the [B, L, D] window IS
-# the raw series Chronos-Bolt expects (D=1) — its native recommended usage, not the
-# 24-column feature panel. This is a whole-run `data:` override (like
-# chronos_bolt_head_only.yaml), so it CANNOT share the base experiment.yaml's
-# `benchmark.models` roster (mlp/lstm/dlinear/moment_zeroshot all expect the 24-column
-# panel) — adding a bare `{name: chronos_bolt_zeroshot, config: {...}}` entry there would
-# NOT raise, it would silently feed this model feature_dim=24 instead of 1 (forward()
-# doesn't assume D==1, so it just degrades to the cross-channel "route B" probe instead of
-# the intended native-usage zero-shot). This fragment therefore also pins `benchmark.models`
-# to a roster of exactly itself, so `scripts/benchmark.py -c experiment.yaml -c this file`
-# produces a correctly-scoped one-row report:
-#   python scripts/benchmark.py -c experiments/experiment.yaml -c experiments/models/chronos_bolt_zeroshot.yaml
-# Cross-model comparison = concat this report's benchmark_summary.csv with the others'
-# (same "run per environment, concat + re-sort by test_rank_ic" pattern already used for
-# cross-Python-version TSFM backends — see pretrained_research.md section 2).
+# `data.extra_input_cols` is pinned to a single RAW price column (`close`, not a
+# cross-sectionally z-scored `crossec_*` feature, and NOT `data.feature_cols` — see
+# models/chronos_bolt_zeroshot.py for why the two are kept separate). The model log-diffs
+# it internally into a realized log-return series before forecasting, so its forecast
+# comes out in the exact same units/horizon as `fwd_logret_1`. `feature_cols` is left at
+# its base-config default (the crossec_* panel) — simply unused by this model, which only
+# ever reads its own extra_input slice of the packed `x`.
 #
-# No `data.target_col` override needed: the model is never trained (zero-shot) and
-# compute_loss compares directly against fwd_logret_1 (batch["fwd_logret"]), not target_col.
+# This is a whole-run `data:` override, so it CANNOT share the base experiment.yaml's
+# `benchmark.models` roster (mlp/lstm/dlinear/moment_zeroshot all rely on the default
+# feature panel with no extra_input_cols) — adding a bare
+# `{name: chronos_bolt_zeroshot, config: {...}}` entry there would raise at build time
+# (extra_input_dim would resolve to 0, and the model's __init__ explicitly rejects that)
+# rather than silently misbehave. This fragment therefore also pins `benchmark.models` to
+# a roster of exactly itself, so `scripts/benchmark.py -c experiment.yaml -c this file`
+# produces a correctly-scoped one-row report. Cross-model comparison = concat this
+# report's benchmark_summary.csv with the others' (same "run per environment, concat +
+# re-sort by test_rank_ic" pattern already used for cross-Python-version TSFM backends —
+# see pretrained_research.md section 2).
+#
+# No `data.target_cols` override needed for the default `loss_target: fwd_logret` below:
+# the model is never trained (zero-shot) and compute_loss compares directly against
+# fwd_logret_1 (batch["fwd_logret"]). `target_cols` stays the base `[logret1_win]` purely
+# because PanelTimeSeriesDataset requires *some* valid target_cols to not drop every
+# sample — it is otherwise unused here (same situation as moment_zeroshot.yaml).
 data:
-  feature_cols: [crossec_logret_1_mad_Zscore]
+  extra_input_cols: [close]
 
 model:
   name: chronos_bolt_zeroshot
   config: &chronos_bolt_zeroshot_config
     model_id: amazon/chronos-bolt-small   # tiny | mini | small | base
-    context_length: null                  # null = full data.seq_len window
+    input_is_price: true                  # log-diff the raw price window before forecasting
+    context_length: null                  # null = full data.seq_len window (raw, pre-diff steps)
     prediction_length: 1                  # next bar
     reduction: mean                       # collapse D per-channel forecasts (D=1 here -> passthrough)
     sign: 1.0                             # flip to -1.0 if val Rank IC comes out negative
+    loss_target: fwd_logret               # fwd_logret | y — see the comment above
     loss_type: huber                      # huber | mse (diagnostic val_loss only, never backpropped)
     huber_delta: 1.0
     series_chunk: 4096

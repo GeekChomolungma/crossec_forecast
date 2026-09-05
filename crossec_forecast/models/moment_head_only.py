@@ -15,7 +15,7 @@ encoder is frozen and used purely as a feature extractor:
   task="classification" (default): output_kind="binary_prob" -> sigmoid, BCE/Focal on
       `logret1_win`; sits next to mlp / lstm / dlinear on the exact same task.
   task="regression": output_kind="point_forecast" -> Huber/MSE vs `fwd_logret_1`
-      (then set `data.target_col: fwd_logret_1` in the fragment).
+      (then set `data.target_cols: [fwd_logret_1]` in the fragment).
 
 Frozen MOMENT is a plain attribute (not an nn submodule): the optimizer and the
 checkpoint stay head-only. LoRA / unfreezing needs Trainer changes — see

@@ -7,8 +7,8 @@
 # Needs the `momentfm` backend (Python 3.9-3.11):  pip install -e ".[moment]"
 #   python scripts/train.py -c experiments/experiment.yaml -c experiments/models/moment_zeroshot.yaml
 #
-# Nothing under `data:` is overridden: target_col stays logret1_win (the loss is never
-# used here — model is eval-only — but the dataset still needs a valid target column;
+# Nothing under `data:` is overridden: target_cols stays [logret1_win] (the loss is never
+# used here — model is eval-only — but the dataset still needs valid target_cols;
 # fwd_logret_1 drives Rank IC as always). Only the `model:` block changes.
 model:
   name: moment_zeroshot

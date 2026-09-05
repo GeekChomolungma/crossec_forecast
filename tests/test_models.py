@@ -120,14 +120,23 @@ class TestModelPluginSystem(unittest.TestCase):
         "chronos backend not installed in this interpreter",
     )
     def test_chronos_bolt_zeroshot_point_forecast_contract(self):
-        cfg = {**self.base_cfg, "model_id": "amazon/chronos-bolt-tiny", "context_length": 8}
+        # Uses extra_input_cols, NOT feature_cols — feature_dim=0 here on purpose (see
+        # models/chronos_bolt_zeroshot.py's module docstring).
+        cfg = {
+            "seq_len": self.l, "feature_dim": 0, "cov_dim": 0, "extra_input_dim": 1,
+            "num_classes": 1, "model_id": "amazon/chronos-bolt-tiny", "context_length": 8,
+        }
         model = build_model("chronos_bolt_zeroshot", cfg)
         self.assertEqual(model.output_kind, "point_forecast")
         self.assertTrue(model.zero_shot)
         # no trainable parameters -> Trainer runs it eval-only
         self.assertEqual(model.trainable_parameters(), [])
 
-        raw = model(self.dummy_input)
+        # strictly-positive price-like series: x[..., feature_dim+cov_dim:] is this
+        # model's own extra_input slice — here that's the whole (width-1) input.
+        price_input = 100.0 + torch.rand(self.b, self.l, 1) * 10.0
+
+        raw = model(price_input)
         self.assertEqual(raw.shape, (self.b, 1))
         self.assertTrue(torch.isfinite(raw).all())
 
@@ -140,6 +149,16 @@ class TestModelPluginSystem(unittest.TestCase):
 
         # state_dict carries only the device-anchor buffer, not Chronos's frozen weights
         self.assertEqual(list(model.state_dict().keys()), ["_dev_anchor"])
+
+    @unittest.skipUnless(
+        is_model_available("chronos_bolt_zeroshot"),
+        "chronos backend not installed in this interpreter",
+    )
+    def test_chronos_bolt_zeroshot_rejects_missing_extra_input(self):
+        # extra_input_dim=0 (the default) means no data.extra_input_cols was configured —
+        # this model deliberately does not fall back to feature_cols.
+        with self.assertRaises(ValueError):
+            build_model("chronos_bolt_zeroshot", {**self.base_cfg, "model_id": "amazon/chronos-bolt-tiny"})
 
     @unittest.skipUnless(
         is_model_available("moment_head_only"),

@@ -60,13 +60,14 @@ def build_dataloaders(
     )
     train_ts, val_ts, test_ts = splitter.split_timestamps(df[config.timestamp_col])
 
-    # Datasets. `cov_cols` is resolved from train (pattern-matched or explicit) and then
-    # pinned explicitly for val/test — same reasoning as feature_cols: all three splits
-    # must pack `x` with the identical column set/order.
+    # Datasets. `cov_cols` / `extra_input_cols` are resolved from train (pattern-matched or
+    # explicit) and then pinned explicitly for val/test — same reasoning as feature_cols:
+    # all three splits must pack `x` with the identical column set/order. `target_cols` has
+    # no pattern variant, so it is just passed through identically to all three.
     train_dataset = PanelTimeSeriesDataset(
         data=df,
         seq_len=config.seq_len,
-        target_col=config.target_col,
+        target_cols=config.target_cols,
         fwd_ret_col=config.fwd_ret_col,
         timestamp_col=config.timestamp_col,
         symbol_col=config.symbol_col,
@@ -74,33 +75,38 @@ def build_dataloaders(
         feature_cols=config.feature_cols,
         cov_pattern=config.cov_pattern,
         cov_cols=config.cov_cols,
+        extra_input_pattern=config.extra_input_pattern,
+        extra_input_cols=config.extra_input_cols,
         allowed_timestamps=train_ts,
     )
 
     feature_cols = train_dataset.feature_cols
     cov_cols = train_dataset.cov_cols
+    extra_input_cols = train_dataset.extra_input_cols
 
     val_dataset = PanelTimeSeriesDataset(
         data=df,
         seq_len=config.seq_len,
-        target_col=config.target_col,
+        target_cols=config.target_cols,
         fwd_ret_col=config.fwd_ret_col,
         timestamp_col=config.timestamp_col,
         symbol_col=config.symbol_col,
         feature_cols=feature_cols,
         cov_cols=cov_cols,
+        extra_input_cols=extra_input_cols,
         allowed_timestamps=val_ts,
     )
 
     test_dataset = PanelTimeSeriesDataset(
         data=df,
         seq_len=config.seq_len,
-        target_col=config.target_col,
+        target_cols=config.target_cols,
         fwd_ret_col=config.fwd_ret_col,
         timestamp_col=config.timestamp_col,
         symbol_col=config.symbol_col,
         feature_cols=feature_cols,
         cov_cols=cov_cols,
+        extra_input_cols=extra_input_cols,
         allowed_timestamps=test_ts,
     )
 
@@ -137,6 +143,10 @@ def build_dataloaders(
         "num_features": len(feature_cols),
         "cov_cols": cov_cols,
         "num_cov": len(cov_cols),
+        "extra_input_cols": extra_input_cols,
+        "num_extra_input": len(extra_input_cols),
+        "target_cols": config.target_cols,
+        "num_target": train_dataset.num_target,
         "seq_len": config.seq_len,
         "n_train_samples": len(train_dataset),
         "n_val_samples": len(val_dataset),
